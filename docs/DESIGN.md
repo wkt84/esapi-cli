@@ -572,6 +572,7 @@ panic は原則としてユーザー入力エラーには使用しない。
 2 invalid arguments
 3 environment error
 4 build error
+5 project validation error / evaluation required
 ```
 
 v1 では必要以上に細分化しなくてよい。
@@ -856,6 +857,20 @@ ESAPI references
 assembly naming
 missing files
 ```
+
+初期の `check` は従来形式の `.csproj` に対する読み取り専用の宣言検査として実装する。
+`--project <file>` がなければ current directory の通常ファイル `.csproj` を候補とし、
+複数候補は選ばず一覧と診断を返す。探索は再帰せず、明示した symbolic link は参照先を検査する。
+`--esapi-version` は project の `ESAPIVersion` がない場合の期待 profile を指定し、
+両方ある場合は一致を要求する。`--esapi-path` は今回の検査だけの `ESAPI_HOME` override とする。
+
+Framework / x64 / Library / `.esapi` assembly name / 各 ESAPI 参照の `Private=False` /
+ESAPI DLL と明示的な Compile Include のファイル存在を確認する。
+条件付きの検査対象、glob、未知の式、独自 import は MSBuild を推測実装せず、
+`PROJECT_EVALUATION_REQUIRED` と必須項目の `skip` を返す。失敗・検査不能は exit 5 とし、
+JSON report は保持する。候補選択の失敗は exit 2、I/O failure は exit 1 とする。
+MSBuild evaluation（implicit import / target body を含む）、compile、assembly identity、
+Eclipse execution は検査済みとはしない。詳しい範囲と schema は CLI_CONTRACT.md に記載する。
 
 ---
 

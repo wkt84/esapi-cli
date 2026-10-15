@@ -49,6 +49,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		result = succeeded("help", map[string]string{"usage": rootUsage}, rootUsage)
 	case command == "new":
 		result = runNew(args[1:])
+	case command == "check":
+		result = runCheck(args[1:])
 	case command == "info" || command == "doctor":
 		result = runInspection(command, args[1:])
 	case command == "version" || command == "--version":

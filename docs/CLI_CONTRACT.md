@@ -1,7 +1,7 @@
 # CLI contract: schema version 1
 
 This contract describes implemented behavior. Commands currently available: `new`,
-`info`, `doctor`, `version` (`--version` alias), and help. `check` and `build` are planned.
+`info`, `doctor`, `check`, `version` (`--version` alias), and help. `build` is planned.
 
 ## Invocation and streams
 
@@ -30,7 +30,7 @@ Human-readable wording is not a stable parsing interface.
 | `schemaVersion` | integer | Currently `1` |
 | `command` | string | Requested command; root help uses `help` |
 | `ok` | boolean | Whether the operation succeeded; agrees with exit code 0 |
-| `data` | object or null | Command result; null for argument/new failures; doctor retains observations on environment failure |
+| `data` | object or null | Command result; null for argument/new failures; doctor/check retain inspection reports on failure |
 | `diagnostics` | array | Empty on current successful operations; structured errors on failure |
 
 Help uses `data.usage` containing the help text, including `new --help --json`.
@@ -111,6 +111,7 @@ identifiers. Filesystem changes between planning and execution can change action
 | 2 | Invalid command, arguments, project name, type, version, or DLL path |
 | 3 | Failed static environment requirements from `doctor` |
 | 4 | Reserved for build failures |
+| 5 | Failed or unevaluable static project requirements from `check` |
 
 | Diagnostic code | Exit | Meaning |
 | --- | --- | --- |
@@ -201,3 +202,74 @@ Environment diagnostics use these codes (exit 3):
 `version`/`--version` return the same CLI identity fields as `info.data.cli`, without
 environment inspection. `commit`/`goVersion` may be empty when unavailable. No build
 timestamp is returned. Human output is `esapi <version>`.
+
+## `check`
+
+`check` accepts `--project <file>`, optional `--esapi-version <profile>` and
+`--esapi-path <directory>`, plus help/JSON flags. There are no positional arguments.
+No profile defaults to 15.6 here: the project must declare `ESAPIVersion` or the
+caller must select one. An explicit profile must match a present declaration.
+
+Without `--project`, selection considers only regular `.csproj` files (extension
+case-insensitive) in the current directory. Symlinks are excluded from discovery;
+an explicit path may resolve through a symlink to a regular file. Zero or multiple
+candidates exit 2; multiple candidates never select a project. Candidate order is
+filename order, and paths are absolute. Selection does not recurse.
+
+`check.data` contains:
+
+- `project`: absolute selected path, or empty when selection failed.
+- `candidates`: array of absolute candidate paths; explicit selection lists its file.
+- `properties`: `esapiVersion`, `esapiVersionSource` (`project` or `argument`),
+  `targetFramework`, `platform`, `assemblyName`, and `outputType`. These are top-level
+  declarations, not evaluated MSBuild properties; unsupported expressions may remain
+  as raw strings. A supported profile is normalized to its `.0` alias when appropriate.
+  Fields may be empty when parsing/inspection could not reach them.
+- `references`: ESAPI references in declaration order; each has `include` (assembly
+  name), `path` (resolved path or empty), and `status`.
+- `files`: explicit Compile items in declaration order, with `include` (original
+  expression), `path`, and `status`.
+- `checks`: ordered checks using `id`, `status`, `required`, `message`, optional `path`.
+  Status is `pass`, `fail`, or `skip`. IDs may repeat for file/reference checks;
+  identify occurrences by their path/message and diagnostics, not unique IDs.
+- `staticChecksPassed`: boolean. Required `fail` or `skip` prevents success.
+
+File statuses are `found` (regular file), `missing`, `invalid` (non-regular file),
+and `unverified` (unresolved expression, unreadable path, or a Windows absolute path
+on a non-Windows host). File existence does not establish assembly identity/version.
+Inspection errors and selection errors retain the report in `data`, including empty
+arrays and `staticChecksPassed: false`. Malformed options/profile/path arguments
+return `data: null`. JSON stderr stays empty. In human mode reports go to stdout and
+diagnostics to stderr, including on failure.
+
+The scope and path substitutions are documented in the README. The checker does
+not evaluate MSBuild or read imported files; it does not execute property functions,
+tools, target bodies, or assemblies. The generated `ESAPI_HOME` environment expression
+is matched as text and reads the process environment only. `--esapi-path` is an
+inspection override, not a persistent setting or a build argument. Actual build
+evaluation, implicit imports, assembly metadata, and runtime verification remain
+an optional `skip` check. Unsupported required declarations cause exit 5, never a
+false passing report.
+
+| Diagnostic code | Exit | Meaning |
+| --- | --- | --- |
+| `PROJECT_NOT_FOUND` | 2 | No candidate or selected file does not exist |
+| `PROJECT_AMBIGUOUS` | 2 | Multiple current-directory candidates require `--project` |
+| `PROJECT_PATH_INVALID` | 2 | Selected path is not a regular `.csproj` file |
+| `PROJECT_ACCESS_FAILED` | 1 | Project directory/file cannot be resolved, inspected, or read |
+| `PROJECT_XML_INVALID` | 5 | XML cannot be parsed as UTF-8 or exceeds 4 MiB |
+| `PROJECT_FORMAT_UNSUPPORTED` | 5 | Root/namespace or SDK format is unsupported |
+| `PROJECT_EVALUATION_REQUIRED` | 5 | Required setting/item needs MSBuild evaluation |
+| `PROJECT_ESAPI_VERSION_REQUIRED` | 5 | No project profile or explicit profile was supplied |
+| `PROJECT_ESAPI_VERSION_UNSUPPORTED` | 5 | Declared profile is unsupported |
+| `PROJECT_ESAPI_VERSION_MISMATCH` | 5 | Explicit profile disagrees with declaration |
+| `PROJECT_FRAMEWORK_MISMATCH` | 5 | Declared framework differs from the profile |
+| `PROJECT_PLATFORM_INVALID` | 5 | PlatformTarget is not x64 |
+| `PROJECT_ASSEMBLY_NAME_INVALID` | 5 | AssemblyName does not have the plug-in output convention |
+| `PROJECT_OUTPUT_TYPE_INVALID` | 5 | OutputType is not Library |
+| `PROJECT_REFERENCE_INVALID` | 5 | Required direct ESAPI reference is missing or duplicated |
+| `PROJECT_REFERENCE_PATH_INVALID` | 5 | HintPath points to a different filename |
+| `PROJECT_REFERENCE_UNAVAILABLE` | 5 | ESAPI reference path is not an accessible regular file |
+| `PROJECT_REFERENCE_COPY_LOCAL` | 5 | ESAPI reference lacks explicit Private=False |
+| `PROJECT_SOURCE_REQUIRED` | 5 | No explicit Compile item exists |
+| `PROJECT_SOURCE_UNAVAILABLE` | 5 | Compile path is not an accessible regular file |
