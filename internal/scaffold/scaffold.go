@@ -26,61 +26,38 @@ type renderedFile struct {
 	data []byte
 }
 
-// Generate creates a project without requiring an ESAPI installation. The DLL
-// references are checked by MSBuild when the generated project is built.
+// Generate creates a project without requiring an ESAPI installation.
 func Generate(options Options) (string, error) {
-	if err := validateName(options.Name); err != nil {
-		return "", err
-	}
-	if options.Type != "" && options.Type != "plugin" {
-		return "", fmt.Errorf("%w: unsupported project type %q; choose plugin", ErrInvalidOptions, options.Type)
-	}
-	version, err := ResolveVersion(options.ESAPIVersion)
+	plan, err := Plan(options)
 	if err != nil {
 		return "", err
 	}
-	data := projectData{Name: options.Name, VersionConfig: version}
-	if options.ESAPIPath != "" {
-		data.ESAPIPath, err = filepath.Abs(options.ESAPIPath)
-		if err != nil {
-			return "", fmt.Errorf("%w: invalid ESAPI path: %v", ErrInvalidOptions, err)
-		}
-		// MSBuild's reference/compiler pipeline can unescape percent sequences
-		// more than once. Refuse these paths instead of referring to a wrong DLL.
-		if strings.ContainsRune(data.ESAPIPath, '%') {
-			return "", fmt.Errorf("%w: ESAPI paths containing a percent sign are not supported; choose a DLL directory without it", ErrInvalidOptions)
-		}
-	}
-	files, err := render(data)
-	if err != nil {
+	if err := plan.Apply(); err != nil {
 		return "", err
 	}
-	parent := options.Output
-	if parent == "" {
-		parent = "."
-	}
-	target, err := filepath.Abs(filepath.Join(parent, options.Name))
-	if err != nil {
-		return "", fmt.Errorf("resolve output directory: %w", err)
-	}
+	return plan.Path, nil
+}
+
+func write(plan *ProjectPlan) error {
+	target, options, files := plan.Path, plan.options, plan.files
 	if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
-		return "", fmt.Errorf("create output directory: %w", err)
+		return pathError("SCAFFOLD_WRITE_FAILED", fmt.Sprintf("create output directory: %v", err), target, err)
 	}
 	created := false
 	if err := os.Mkdir(target, 0755); err == nil {
 		created = true
 	} else if !os.IsExist(err) {
-		return "", fmt.Errorf("create project directory: %w", err)
+		return pathError("SCAFFOLD_WRITE_FAILED", fmt.Sprintf("create project directory: %v", err), target, err)
 	} else {
 		if !options.Force {
-			return "", fmt.Errorf("directory %q already exists; use --force to overwrite generated files", target)
+			return pathError("DESTINATION_CHANGED", "destination appeared after planning; run the command again", target, nil)
 		}
 		info, err := os.Lstat(target)
 		if err != nil {
-			return "", err
+			return pathError("OUTPUT_ACCESS_FAILED", err.Error(), target, err)
 		}
 		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-			return "", fmt.Errorf("project destination %q must be a real directory", target)
+			return pathError("UNSAFE_DESTINATION", "project destination must be a real directory", target, nil)
 		}
 	}
 	root, err := os.OpenRoot(target)
@@ -88,7 +65,7 @@ func Generate(options Options) (string, error) {
 		if created {
 			_ = os.Remove(target) // Only removes an empty directory.
 		}
-		return "", err
+		return pathError("OUTPUT_ACCESS_FAILED", err.Error(), target, err)
 	}
 	err = writeProject(root, files, created)
 	closeErr := root.Close()
@@ -99,9 +76,9 @@ func Generate(options Options) (string, error) {
 		if created {
 			_ = os.Remove(target) // Never recursively remove unknown files.
 		}
-		return "", fmt.Errorf("generate project: %w", err)
+		return pathError("SCAFFOLD_WRITE_FAILED", fmt.Sprintf("generate project: %v", err), target, err)
 	}
-	return target, nil
+	return nil
 }
 
 func render(data projectData) ([]renderedFile, error) {

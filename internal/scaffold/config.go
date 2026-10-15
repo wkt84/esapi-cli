@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/wkt84/esapi-cli/internal/diagnostic"
 )
 
 const DefaultVersion = "15.6"
@@ -24,17 +26,18 @@ type VersionConfig struct {
 	Version         string
 	TargetFramework string
 	Platform        string
-	Provisional     bool
 }
 
 // Keep all version-specific choices here. These are generation profiles, not a
 // claim that the generated assemblies have been tested in every Eclipse release.
 var versions = map[string]VersionConfig{
-	"15.6": {"15.6", "v4.5", "x64", true},
-	"16.0": {"16.0", "v4.6.1", "x64", false},
-	"16.1": {"16.1", "v4.6.1", "x64", false},
-	"17.0": {"17.0", "v4.8", "x64", false},
-	"18.0": {"18.0", "v4.8", "x64", false},
+	// 15.6 follows the 15.5 .NET Framework 4.5 profile; no separate framework
+	// requirement is stated in the available 15.6 documentation.
+	"15.6": {"15.6", "v4.5", "x64"},
+	"16.0": {"16.0", "v4.6.1", "x64"},
+	"16.1": {"16.1", "v4.6.1", "x64"},
+	"17.0": {"17.0", "v4.8", "x64"},
+	"18.0": {"18.0", "v4.8", "x64"},
 }
 
 // ResolveVersion returns the generation profile for an explicitly selected release.
@@ -48,7 +51,7 @@ func ResolveVersion(version string) (VersionConfig, error) {
 	}
 	config, ok := versions[version]
 	if !ok {
-		return VersionConfig{}, fmt.Errorf("%w: unsupported ESAPI version %q; choose 15.6, 16.0, 16.1, 17.0, or 18.0 (automatic detection is not implemented)", ErrInvalidOptions, version)
+		return VersionConfig{}, diagnostic.New("UNSUPPORTED_ESAPI_VERSION", fmt.Sprintf("unsupported ESAPI version %q; choose 15.6, 16.0, 16.1, 17.0, or 18.0 (automatic detection is not implemented)", version), ErrInvalidOptions)
 	}
 	return config, nil
 }
@@ -57,7 +60,7 @@ var projectName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,99}$`)
 
 func validateName(name string) error {
 	if !projectName.MatchString(name) {
-		return fmt.Errorf("%w: project name must be 1-100 ASCII letters, digits, or underscores and must not start with a digit", ErrInvalidOptions)
+		return diagnostic.New("INVALID_PROJECT_NAME", "project name must be 1-100 ASCII letters, digits, or underscores and must not start with a digit", ErrInvalidOptions)
 	}
 	upper := strings.ToUpper(name)
 	reserved := upper == "CON" || upper == "PRN" || upper == "AUX" || upper == "NUL"
@@ -65,7 +68,7 @@ func validateName(name string) error {
 		reserved = reserved || (upper[3] >= '1' && upper[3] <= '9')
 	}
 	if reserved {
-		return fmt.Errorf("%w: project name %q is reserved on Windows", ErrInvalidOptions, name)
+		return diagnostic.New("INVALID_PROJECT_NAME", fmt.Sprintf("project name %q is reserved on Windows", name), ErrInvalidOptions)
 	}
 	return nil
 }

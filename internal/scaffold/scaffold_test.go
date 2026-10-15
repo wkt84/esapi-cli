@@ -106,7 +106,7 @@ func TestNewProject(t *testing.T) {
 		t.Fatalf("references = %d; Script.cs items = %d", apiReferences, compileItems)
 	}
 	readme := readFile(t, filepath.Join(path, "README.md"))
-	for _, want := range []string{"MyScript.esapi.dll", "provisional", "NOT FOR CLINICAL USE", "not affiliated with or endorsed by"} {
+	for _, want := range []string{"MyScript.esapi.dll", "NOT FOR CLINICAL USE", "not affiliated with or endorsed by"} {
 		if !strings.Contains(readme, want) {
 			t.Errorf("README is missing %q", want)
 		}

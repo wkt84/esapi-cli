@@ -261,6 +261,8 @@ v1:
 --force
 --esapi-version <version>
 --esapi-path <DLL directory>
+--dry-run
+--json
 ```
 
 例:
@@ -402,7 +404,7 @@ Milestone 1 では自動検出を行わず、未指定時は明示的に `15.6` 
 
 | ESAPI | Target framework | Platform | 備考 |
 | --- | --- | --- | --- |
-| 15.6 | .NET Framework 4.5 | x64 | 暫定。既存 project / 実 SDK で確認後に調整 |
+| 15.6 | .NET Framework 4.5 | x64 | 15.5 と同じ設定を採用。15.6 の資料には別の要件の明記なし |
 | 16.0 / 16.1 | .NET Framework 4.6.1 | x64 | reference guide に基づく設定 |
 | 17.0 / 18.0 | .NET Framework 4.8 | x64 | reference guide に基づく設定 |
 
@@ -971,8 +973,30 @@ agent-friendly な CLI contract として以下を重視する。
 - 成功結果は stdout、診断は stderr に出力し、exit code の意味を文書化する。
 - help に引数、選択肢、default、生成先と副作用を明記する。
 - 上書きや既存ファイルの扱いを予測可能にし、実行時に隠れた変更を行わない。
-- 後続 milestone で `--json` による構造化出力を導入し、schema version、安定した field と error identifier を文書化する。
-- 構造化出力の導入までは、人間向けメッセージの文字列を安定した parsing API として扱わない。
+- `--json` による構造化出力を主要 command へ展開し、schema version、安定した field と error identifier を文書化する。最初の対象は `new` とする。
+- 人間向けメッセージの文字列を安定した parsing API として扱わない。
+
+追加の原則:
+
+- `info` / `doctor` / `check` は読み取り専用とし、依存ツールの install、環境変数の永続変更、設定の自動修正を暗黙に行わない。
+- project 候補が複数ある場合は推測で選ばず、候補と診断を返し、`--project <path>` で選択可能にする。
+- JSON field / schema version、診断 code、exit code を公開 contract として扱う。破壊的な schema 変更は version を上げる。
+- 外部 build process へ cancellation を伝え、timeout / 中断を診断 code で区別する。待ち時間の上限も指定可能にする。
+- `info --json` は実効設定と採用元に加えて、CLI の対応 command / profile / capability を返せる構造にする。
+- 検査結果は確認済み・失敗・未検査を区別する。設定検査やコンパイル成功から Eclipse 上の実行成功を推定しない。
+- 同じ CLI / template version と実効入力に対して生成ファイルを決定的にする。日時やランダム ID を生成物に含めない。
+
+`new --dry-run` は通常生成と共通の validation / template rendering を使い、
+生成先とファイルごとの `create` / `overwrite` を返す。親ディレクトリも作成しない。
+実際の書き込み権限や実行時の I/O 成功は保証せず、計画は filesystem snapshot とする。
+通常生成時には書き込み前に再検査する。
+
+構造化出力は `schemaVersion` / `command` / `ok` / `data` / `diagnostics` を共通の
+envelope とし、通常のエラーも stdout に JSON 1件で返す。
+詳細は [CLI_CONTRACT.md](CLI_CONTRACT.md) に記載する。
+
+実装順序は `new --json / --dry-run` → `doctor / info` → 基本的な `check` → v2 の `build` とする。
+`check` の基本的な静的検査は agent 向けの価値を考慮し、v2 から前倒しする。
 
 これらは CLI の入出力設計の方針であり、v1 の LLM integration / MCP server の
 non-goals は維持する。Milestone 1 で未実装の機能は README に明記する。

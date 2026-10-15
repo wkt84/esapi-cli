@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/wkt84/esapi-cli/internal/diagnostic"
 	"github.com/wkt84/esapi-cli/internal/scaffold"
 )
 
@@ -20,25 +21,21 @@ Options:
   --esapi-version <ver>  15.6, 16.0, 16.1, 17.0, 18.0 (default: 15.6)
   --esapi-path <path>    Directory containing both ESAPI DLLs
   --force               Overwrite generated files; keep all other files
+  --dry-run             Validate and list changes without writing
+  --json                Emit a schema-versioned JSON result
   -h, --help            Show help
 
-The ESAPI 15.6 framework profile is provisional, pending environment validation.
 Without --esapi-path, the generated project uses ESAPI_HOME at build time.
 `
 
-// Run executes the CLI and returns an exit code without exiting the process.
-func Run(args []string, stdout, stderr io.Writer) int {
-	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
-		fmt.Fprint(stdout, usage)
-		return 0
-	}
-	if args[0] != "new" {
-		fmt.Fprintf(stderr, "error: unknown command %q; use esapi --help\n", args[0])
-		return 2
-	}
+type newData struct {
+	*scaffold.ProjectPlan
+	DryRun bool `json:"dryRun"`
+}
 
+func runNew(args []string) response {
 	var options scaffold.Options
-	var help bool
+	var help, dryRun bool
 	flags := flag.NewFlagSet("new", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	flags.StringVar(&options.Type, "type", "plugin", "project type")
@@ -46,43 +43,44 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	flags.StringVar(&options.ESAPIVersion, "esapi-version", scaffold.DefaultVersion, "ESAPI version")
 	flags.StringVar(&options.ESAPIPath, "esapi-path", "", "ESAPI DLL directory")
 	flags.BoolVar(&options.Force, "force", false, "overwrite generated files")
+	flags.BoolVar(&dryRun, "dry-run", false, "plan without writing files")
 	flags.BoolVar(&help, "help", false, "show help")
 	flags.BoolVar(&help, "h", false, "show help")
-	ordered, err := orderArgs(flags, args[1:])
+	ordered, err := orderArgs(flags, args)
 	if err == nil {
 		err = flags.Parse(ordered)
 	}
 	if err != nil {
-		fmt.Fprintf(stderr, "error: %v\n", err)
-		return 2
+		return failed("new", "INVALID_ARGUMENTS", err, 2)
 	}
 	if help {
-		fmt.Fprint(stdout, usage)
-		return 0
+		return succeeded("new", map[string]string{"usage": usage}, usage)
 	}
 	if flags.NArg() != 1 {
-		fmt.Fprintln(stderr, "error: specify exactly one project name; use esapi new --help")
-		return 2
+		return failed("new", "INVALID_ARGUMENTS", fmt.Errorf("specify exactly one project name; use esapi new --help"), 2)
 	}
 	options.Name = flags.Arg(0)
-	profile, err := scaffold.ResolveVersion(options.ESAPIVersion)
-	if err != nil {
-		fmt.Fprintf(stderr, "error: %v\n", err)
-		return 2
+	plan, err := scaffold.Plan(options)
+	if err == nil && !dryRun {
+		err = plan.Apply()
 	}
-	path, err := scaffold.Generate(options)
 	if err != nil {
-		fmt.Fprintf(stderr, "error: %v\n", err)
+		exitCode := 1
 		if errors.Is(err, scaffold.ErrInvalidOptions) {
-			return 2
+			exitCode = 2
 		}
-		return 1
+		return failed("new", "SCAFFOLD_WRITE_FAILED", err, exitCode)
 	}
-	fmt.Fprintf(stdout, "Created %s\n", path)
-	if profile.Provisional {
-		fmt.Fprintf(stdout, "ESAPI %s: using .NET Framework %s provisionally; validate in your environment.\n", profile.Version, strings.TrimPrefix(profile.TargetFramework, "v"))
+	message := fmt.Sprintf("Created %s\n", plan.Path)
+	if dryRun {
+		var text strings.Builder
+		fmt.Fprintf(&text, "Would generate %s\n", plan.Path)
+		for _, file := range plan.Files {
+			fmt.Fprintf(&text, "  %s %s\n", file.Action, file.Path)
+		}
+		message = text.String()
 	}
-	return 0
+	return succeeded("new", newData{plan, dryRun}, message)
 }
 
 // The standard flag parser stops at the first positional argument. Move positional
@@ -102,7 +100,7 @@ func orderArgs(flags *flag.FlagSet, args []string) ([]string, error) {
 		name, _, hasValue := strings.Cut(strings.TrimLeft(arg, "-"), "=")
 		option := flags.Lookup(name)
 		if option == nil {
-			return nil, fmt.Errorf("unknown option %q", arg)
+			return nil, diagnostic.New("UNKNOWN_OPTION", fmt.Sprintf("unknown option %q", arg), nil)
 		}
 		options = append(options, arg)
 		boolean, isBoolean := option.Value.(interface{ IsBoolFlag() bool })
