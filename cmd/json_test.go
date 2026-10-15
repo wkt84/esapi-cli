@@ -97,7 +97,7 @@ func TestJSONErrorContract(t *testing.T) {
 		{[]string{"new", "../Outside"}, "INVALID_PROJECT_NAME"},
 		{[]string{"new", "Example", "--unknown"}, "UNKNOWN_OPTION"},
 		{[]string{"new", "Example", "--type=standalone"}, "UNSUPPORTED_PROJECT_TYPE"},
-		{[]string{"new", "Example", "--esapi-version=19"}, "UNSUPPORTED_ESAPI_VERSION"},
+		{[]string{"new", "Example", "--esapi-version=20"}, "UNSUPPORTED_ESAPI_VERSION"},
 		{[]string{"new", "Example", "--esapi-path=sdk%25"}, "INVALID_ESAPI_PATH"},
 		{[]string{"new", "Example", "--output"}, "INVALID_ARGUMENTS"},
 		{[]string{"new", "Example", "--force=invalid"}, "INVALID_ARGUMENTS"},

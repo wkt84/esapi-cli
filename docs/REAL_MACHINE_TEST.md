@@ -3,6 +3,9 @@
 Environment inspection is ready for testing on an ESAPI development workstation.
 The commands below inspect files and headers without starting Eclipse, loading SDK
 assemblies, accessing patient data, or changing persistent system settings.
+Inspection and compilation can run on an SDK-only machine with DLLs installed by
+the ESAPI installer. Eclipse is not required for those steps. Runtime verification
+on an Eclipse workstation is tracked separately.
 
 ## 1. Check observations and diagnostics
 
@@ -11,7 +14,7 @@ Copy the single Windows amd64 executable to the workstation, or build it with
 defaults to the 15.6 generation profile.
 
 ```powershell
-$esapiVersion = '18' # Use '15.6', '16.0', '16.1', '17', or '18' as appropriate.
+$esapiVersion = '18' # Choose 15.6, 16.0, 16.1, 17, 18, 18.1, or 19 as installed.
 .\esapi.exe --version --json
 .\esapi.exe info --esapi-version $esapiVersion --json
 .\esapi.exe doctor --esapi-version $esapiVersion --json
@@ -29,8 +32,8 @@ Confirm these observations against the workstation:
 - MSBuild/dotnet paths and SDK markers. Native MSBuild can satisfy the toolchain
   requirement without a separate .NET SDK.
 - Targeting-pack path for the selected profile: 15.6 uses Framework 4.5,
-  16.0/16.1 uses 4.6.1, and 17.0/18.0 uses 4.8. An installed runtime alone does not
-  imply that the corresponding reference assemblies are available.
+  16.0/16.1 uses 4.6.1, and 17.0/18.0/18.1/19.0 uses 4.8. An installed runtime
+  alone does not imply that the corresponding reference assemblies are available.
 
 If known-path discovery misses a custom installation or reports multiple candidates:
 
@@ -75,12 +78,18 @@ scripts. Do not treat a passing doctor report as evidence of clinical validation
 
 ## Verification performed during development
 
-On 2026-10-15, Windows checks found local ESAPI 18.0 DLLs, native Visual Studio
+The local development machine has ESAPI 15.6 and 18.0 DLLs installed using the
+ESAPI installer, and does not have Eclipse installed. The available Eclipse 15.6
+environment is on a separate workstation and has not yet been tested with this CLI.
+
+On 2026-10-15, local Windows checks found ESAPI 18.0 DLLs, native Visual Studio
 MSBuild, and the Framework 4.8 targeting pack. The generated empty 18.0 plug-in
 compiled successfully against those DLLs, and vendor DLLs were not copied to output.
 The 15.6 DLL path was also found; its doctor run correctly failed because the local
 Framework 4.5 reference-assembly markers were missing. A 15.6 build was not attempted.
 No Eclipse execution was performed.
+The 18.1 and 19.0 generation profiles follow their reference guides' Framework 4.8
+requirements; matching SDK builds and Eclipse execution have not been tested.
 
 CI uses independently authored filesystem/PE-header fixtures, including PE32/I386
 and PE32+/amd64 declarations, invalid files, ambiguous paths, and runtime-only

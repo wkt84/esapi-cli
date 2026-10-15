@@ -406,9 +406,9 @@ Milestone 1 では自動検出を行わず、未指定時は明示的に `15.6` 
 | --- | --- | --- | --- |
 | 15.6 | .NET Framework 4.5 | x64 | 15.5 と同じ設定を採用。15.6 の資料には別の要件の明記なし |
 | 16.0 / 16.1 | .NET Framework 4.6.1 | x64 | reference guide に基づく設定 |
-| 17.0 / 18.0 | .NET Framework 4.8 | x64 | reference guide に基づく設定 |
+| 17.0 / 18.0 / 18.1 / 19.0 | .NET Framework 4.8 | x64 | reference guide に基づく設定 |
 
-`16` / `17` / `18` は対応する `.0` profile の別名とする。
+`16` / `17` / `18` / `19` は対応する `.0` profile の別名とする。
 実 ESAPI DLL を用いた build と Eclipse 上での動作は別途確認する。
 
 version-specific configuration はコード中に散在させず、一箇所に集約する。

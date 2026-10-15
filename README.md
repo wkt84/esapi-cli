@@ -34,17 +34,18 @@ Static project validation (`check`) and a build command remain planned.
 ## ESAPI generation profiles
 
 The compatibility goal is ESAPI 15.6 and later. The generation profiles below are
-available now. A generated empty 18.0 plug-in has been compiled against locally
-installed 18.0 DLLs; Eclipse execution and other profiles' builds remain unverified.
+available now. A generated empty 18.0 plug-in has been compiled against DLLs from
+the ESAPI installer on a machine without Eclipse. Eclipse execution and other
+profiles' builds remain unverified.
 Unknown versions are rejected rather than assigned a framework automatically.
 
 | ESAPI profile | Target framework | Platform | Notes |
 | --- | --- | --- | --- |
 | 15.6 (default) | .NET Framework 4.5 | x64 | Uses the 15.5 framework setting; 15.6 documentation does not state a separate requirement |
 | 16.0, 16.1 | .NET Framework 4.6.1 | x64 | Based on reference documentation |
-| 17.0, 18.0 | .NET Framework 4.8 | x64 | Based on reference documentation |
+| 17.0, 18.0, 18.1, 19.0 | .NET Framework 4.8 | x64 | Based on reference documentation |
 
-`16`, `17`, and `18` are aliases for their `.0` profiles. These are framework
+`16`, `17`, `18`, and `19` are aliases for their `.0` profiles. These are framework
 profiles for newly generated projects, not a promise of binary compatibility
 across Eclipse versions.
 
@@ -124,6 +125,8 @@ Generating a project does not require the ESAPI SDK or .NET tools. Building the
 generated project requires Windows, Visual Studio / MSBuild, the selected .NET
 Framework targeting pack, and a separately installed matching ESAPI SDK.
 A modern .NET SDK alone does not replace the .NET Framework targeting pack.
+Eclipse is not required on the build machine; running the plug-in is a separate
+step on a compatible Eclipse installation.
 
 Set `ESAPI_HOME` to the directory directly containing both ESAPI DLLs, typically
 the SDK's `API` subdirectory. It is read by MSBuild when building, so the same

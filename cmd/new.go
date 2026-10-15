@@ -18,7 +18,7 @@ Create a minimal ESAPI binary plug-in project.
 Options:
   --type plugin          Project type (default: plugin)
   --output <path>        Parent directory (default: current directory)
-  --esapi-version <ver>  15.6, 16.0, 16.1, 17.0, 18.0 (default: 15.6)
+  --esapi-version <ver>  15.6, 16.0, 16.1, 17.0, 18.0, 18.1, 19.0 (default: 15.6)
   --esapi-path <path>    Directory containing both ESAPI DLLs
   --force               Overwrite generated files; keep all other files
   --dry-run             Validate and list changes without writing

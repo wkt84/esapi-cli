@@ -120,6 +120,7 @@ func TestVersionProfiles(t *testing.T) {
 	for _, item := range []struct{ version, framework string }{
 		{"15.6", "v4.5"}, {"16.0", "v4.6.1"}, {"16.1", "v4.6.1"},
 		{"17.0", "v4.8"}, {"18.0", "v4.8"}, {"18", "v4.8"},
+		{"18.1", "v4.8"}, {"19.0", "v4.8"}, {"19", "v4.8"},
 	} {
 		t.Run(item.version, func(t *testing.T) {
 			path, err := Generate(Options{Name: "Example", Output: t.TempDir(), ESAPIVersion: item.version})
@@ -129,6 +130,13 @@ func TestVersionProfiles(t *testing.T) {
 			content := readFile(t, filepath.Join(path, "Example.csproj"))
 			if !strings.Contains(content, "<TargetFrameworkVersion>"+item.framework+"</TargetFrameworkVersion>") {
 				t.Fatal("incorrect target framework")
+			}
+			version := item.version
+			if !strings.Contains(version, ".") {
+				version += ".0"
+			}
+			if !strings.Contains(content, "<ESAPIVersion>"+version+"</ESAPIVersion>") {
+				t.Fatal("incorrect ESAPI version or alias normalization")
 			}
 		})
 	}
@@ -150,7 +158,7 @@ func TestInvalidOptionsDoNotCreateOutput(t *testing.T) {
 	for _, options := range []Options{
 		{Name: "Example", Type: "standalone"},
 		{Name: "Example", ESAPIVersion: "15.5"},
-		{Name: "Example", ESAPIVersion: "19.0"},
+		{Name: "Example", ESAPIVersion: "20.0"},
 		{Name: "Example", ESAPIVersion: "auto"},
 		{Name: "Example", ESAPIPath: "sdk%25"},
 	} {

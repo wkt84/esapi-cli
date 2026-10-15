@@ -49,6 +49,8 @@ var versions = map[string]VersionConfig{
 	"16.1": {"16.1", "v4.6.1", "x64"},
 	"17.0": {"17.0", "v4.8", "x64"},
 	"18.0": {"18.0", "v4.8", "x64"},
+	"18.1": {"18.1", "v4.8", "x64"},
+	"19.0": {"19.0", "v4.8", "x64"},
 }
 
 // ResolveVersion returns the generation profile for an explicitly selected release.
@@ -57,12 +59,12 @@ func ResolveVersion(version string) (VersionConfig, error) {
 		version = DefaultVersion
 	}
 	switch version {
-	case "16", "17", "18":
+	case "16", "17", "18", "19":
 		version += ".0"
 	}
 	config, ok := versions[version]
 	if !ok {
-		return VersionConfig{}, diagnostic.New("UNSUPPORTED_ESAPI_VERSION", fmt.Sprintf("unsupported ESAPI version %q; choose 15.6, 16.0, 16.1, 17.0, or 18.0 (automatic detection is not implemented)", version), ErrInvalidOptions)
+		return VersionConfig{}, diagnostic.New("UNSUPPORTED_ESAPI_VERSION", fmt.Sprintf("unsupported ESAPI version %q; choose 15.6, 16.0, 16.1, 17.0, 18.0, 18.1, or 19.0 (automatic detection is not implemented)", version), ErrInvalidOptions)
 	}
 	return config, nil
 }
