@@ -46,9 +46,13 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	case formatErr != nil:
 		result = failed(command, "INVALID_ARGUMENTS", formatErr, 2)
 	case len(args) == 0 || command == "--help" || command == "-h" || command == "help":
-		result = succeeded("help", map[string]string{"usage": usage}, usage)
+		result = succeeded("help", map[string]string{"usage": rootUsage}, rootUsage)
 	case command == "new":
 		result = runNew(args[1:])
+	case command == "info" || command == "doctor":
+		result = runInspection(command, args[1:])
+	case command == "version" || command == "--version":
+		result = runVersion(args[1:])
 	default:
 		result = failed(command, "UNKNOWN_COMMAND", fmt.Errorf("unknown command %q; use esapi --help", command), 2)
 	}
@@ -57,12 +61,13 @@ func Run(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "error: cannot write JSON output: %v\n", err)
 			return 1
 		}
-	} else if result.OK {
+	} else {
 		if _, err := io.WriteString(stdout, result.text); err != nil {
 			fmt.Fprintf(stderr, "error: cannot write output: %v\n", err)
 			return 1
 		}
-	} else {
+	}
+	if !jsonMode && !result.OK {
 		for _, d := range result.Diagnostics {
 			fmt.Fprintf(stderr, "error: %s [%s]\n", d.Message, d.Code)
 			if d.Hint != "" {

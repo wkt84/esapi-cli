@@ -1,7 +1,7 @@
 # CLI contract: schema version 1
 
-This contract describes implemented behavior. Commands currently available: `new`
-and help. `doctor`, `info`, `check`, `build`, `version`, and `--version` are planned.
+This contract describes implemented behavior. Commands currently available: `new`,
+`info`, `doctor`, `version` (`--version` alias), and help. `check` and `build` are planned.
 
 ## Invocation and streams
 
@@ -30,7 +30,7 @@ Human-readable wording is not a stable parsing interface.
 | `schemaVersion` | integer | Currently `1` |
 | `command` | string | Requested command; root help uses `help` |
 | `ok` | boolean | Whether the operation succeeded; agrees with exit code 0 |
-| `data` | object or null | Command result; null for failures |
+| `data` | object or null | Command result; null for argument/new failures; doctor retains observations on environment failure |
 | `diagnostics` | array | Empty on current successful operations; structured errors on failure |
 
 Help uses `data.usage` containing the help text, including `new --help --json`.
@@ -109,7 +109,7 @@ identifiers. Filesystem changes between planning and execution can change action
 | 0 | Success or requested help, including a successful dry-run |
 | 1 | Filesystem / operational failure, including destination conflicts |
 | 2 | Invalid command, arguments, project name, type, version, or DLL path |
-| 3 | Reserved for environment errors in future diagnostic commands |
+| 3 | Failed static environment requirements from `doctor` |
 | 4 | Reserved for build failures |
 
 | Diagnostic code | Exit | Meaning |
@@ -132,3 +132,72 @@ Normal `--force` overwrites only the four generated files and preserves unrelate
 files. Replacement is atomic per file, not across the whole project. On a write
 failure, previously replaced generated files may already be updated. Inspect the
 destination before retrying; `--force` is always an explicit choice.
+
+## `info`, `doctor`, and version
+
+`info`/`doctor` accept `--esapi-version` (default `15.6`), `--esapi-path`,
+`--dotnet-path`, `--msbuild-path`, and `--targeting-pack-path`, plus help/JSON flags.
+Profiles are normalized using the same table as `new`. Tool/path flags identify
+local files for inspection only; they do not execute or configure the tools.
+Known installation discovery is Windows-only, bounded to the layouts documented
+in the README, and does not inspect registry settings or scan arbitrary disks.
+
+`info.data` contains:
+
+- `cli`: `version`, `commit`, `modified` (boolean), and `goVersion`.
+- `capabilities`: `commands` (`name`, `json`, `dryRun`, `readOnly`), sorted `profiles`
+  (`version`, `targetFramework`, `platform`), and `schemaVersions` (currently `[1]`).
+- `environment`: `os`, `arch`, selected `profile`, `dotnet`, `msbuild`,
+  `targetingPack`, `esapi`, and ordered `dlls` (API then Types).
+
+The environment's profile is the requested generation profile, not a detected DLL
+version. `info` exits 0 when it can report observations, including missing/invalid
+components. Invalid arguments still exit 2 with `data: null`.
+
+Path facts contain `path` (an absolute selected/attempted path when available;
+empty when no candidate is selected), `source`
+(`argument`, `environment`, `path`, or `discovery`), `status`, `candidates` (array),
+and optional `issue`. Status values are `found`, `missing`, `invalid`, `ambiguous`,
+and `unverified`. `missing` means the limited probes found no candidate; it is not
+an exhaustive assertion that no installation exists. Unusable explicit/environment
+paths do not fall back. Ambiguous discovery leaves `path` empty and lists candidates.
+
+Tool facts add `sdks` (array of directory names with MSBuild.dll markers) and
+`sdkStatus` (`found`, `missing`, `unverified`, or `notApplicable` for native MSBuild).
+SDK markers do not prove which SDK a project/global.json would select. Targeting-pack
+facts add `missingFiles`; unreadable marker metadata is reported as unverified.
+
+DLL facts contain `name`, `path`, `status`, `pe` (object or null), and optional
+`code`/`issue`. `pe` contains `machine` (`amd64`, `i386`, `arm64`, or hexadecimal),
+`format` (`PE32`/`PE32+`), `isDll`, and `hasClrHeader`. Header inspection checks only
+the declaration of the CLR directory; it does not validate its metadata, assembly
+identity/version, CLR flags, or runtime bitness. `found` is a structural observation,
+not an assertion of SDK authenticity or compatibility. Assemblies are never loaded.
+
+`doctor.data` contains `environment`, `checks`, and `staticChecksPassed` (boolean).
+Each check has `id`, `status` (`pass`, `fail`, `skip`), `required` (boolean), `message`,
+and optional `path`. A failed required check sets `ok: false`, exit 3, and adds a
+diagnostic. The complete report remains in `data` on environment failure; this is
+specific to the newly introduced doctor command and does not change `new` results.
+Unperformed tool execution, assembly identity, and Eclipse execution checks are
+`skip` with `required: false`. A passing report cannot establish runtime readiness.
+In human mode the report goes to stdout even on exit 3; error diagnostics go to stderr.
+
+Environment diagnostics use these codes (exit 3):
+
+| Code | Meaning |
+| --- | --- |
+| `UNSUPPORTED_OS` | Supported development host requires Windows |
+| `UNSUPPORTED_HOST_ARCHITECTURE` | Supported development host requires amd64 |
+| `BUILD_TOOLCHAIN_NOT_FOUND` | No native MSBuild or dotnet SDK candidate selected |
+| `MSBUILD_UNAVAILABLE` | Explicit MSBuild executable is unavailable |
+| `DOTNET_SDK_UNAVAILABLE` | Explicit dotnet path lacks a usable host/SDK marker |
+| `TARGETING_PACK_UNAVAILABLE` | Selected framework's reference markers are unavailable |
+| `ESAPI_PATH_UNAVAILABLE` | ESAPI directory is missing, unusable, or ambiguous |
+| `ESAPI_API_DLL_NOT_FOUND` / `ESAPI_TYPES_DLL_NOT_FOUND` | Required file missing |
+| `ESAPI_API_DLL_INVALID` / `ESAPI_TYPES_DLL_INVALID` | Wrong file type or PE/CLR-header declaration |
+| `ESAPI_API_DLL_UNREADABLE` / `ESAPI_TYPES_DLL_UNREADABLE` | File could not be inspected |
+
+`version`/`--version` return the same CLI identity fields as `info.data.cli`, without
+environment inspection. `commit`/`goVersion` may be empty when unavailable. No build
+timestamp is returned. Human output is `esapi <version>`.

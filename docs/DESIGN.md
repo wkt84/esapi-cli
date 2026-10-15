@@ -472,6 +472,15 @@ C:\Program Files\...\ESAPI
 
 診断失敗は適切な exit code を返す。
 
+初期実装は読み取り専用の静的検査とする。`info` は同じ検出結果と CLI capability を返し、
+環境不足があっても情報取得として成功する。`doctor` は必須項目の不足で exit code 3 を返す。
+JSON の `doctor.data` は失敗時も全 observation / check を保持する。
+tool や DLL は実行・load せず、PATH / 明示パス / 既知の filesystem layout を調べる。
+MSBuild が見つかれば dotnet SDK は必須としない。dotnet host のみを SDK と見なさない。
+選択 Framework の targeting pack は `mscorlib.dll` と `RedistList/FrameworkList.xml` で確認する。
+複数の installation 候補は勝手に選択せず、明示指定を要求する。
+実行・assembly identity・version 整合性・Eclipse 動作は未検査として明示する。
+
 ---
 
 # 14. DLL inspection in v1
@@ -494,6 +503,10 @@ PE32 / PE32+
 Assembly Version 等が簡単に安全に取得できる場合のみ実装する。
 
 Reflection 相当の処理は行わない。
+
+初期実装は DLL characteristic と CLR directory declaration も読み取る。
+PE32 / I386 のみを理由に x86 専用と判定しない。CLR flag / metadata の解析は行わず、
+構造上の検査成功から実際の SDK identity や実行可能性を推定しない。
 
 ---
 
@@ -522,6 +535,10 @@ build date
 ```
 
 ただし build date は reproducible build を妨げる場合は省略可能。
+
+`--version` を `version` の別名とし、両方で `--json` を提供する。
+version / commit は `internal/buildinfo` の linker flag で設定できるようにする。
+利用可能な Go build metadata から commit / modified / Go version を補完する。
 
 ---
 

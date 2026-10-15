@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/wkt84/esapi-cli/internal/diagnostic"
@@ -23,9 +24,19 @@ type Options struct {
 }
 
 type VersionConfig struct {
-	Version         string
-	TargetFramework string
-	Platform        string
+	Version         string `json:"version"`
+	TargetFramework string `json:"targetFramework"`
+	Platform        string `json:"platform"`
+}
+
+// Profiles returns a stable, independent list of supported generation profiles.
+func Profiles() []VersionConfig {
+	result := make([]VersionConfig, 0, len(versions))
+	for _, profile := range versions {
+		result = append(result, profile)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Version < result[j].Version })
+	return result
 }
 
 // Keep all version-specific choices here. These are generation profiles, not a

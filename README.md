@@ -11,10 +11,10 @@ and Script Wizard resources are not distributed with this tool.
 
 ## Status
 
-The current milestone implements `esapi new`, `--json`, `--dry-run`, and their tests.
-`doctor`, `version`, automatic environment detection, and a build command are not
-implemented yet.
-Validation and build commands are planned capabilities.
+Available commands: `new`, `info`, `doctor`, and `version` (`--version` alias), with
+structured `--json` output. Scaffolding also supports `--dry-run`. Environment
+inspection is read-only and includes limited, documented known-path discovery.
+Static project validation (`check`) and a build command remain planned.
 
 ## Design direction
 
@@ -34,7 +34,8 @@ Validation and build commands are planned capabilities.
 ## ESAPI generation profiles
 
 The compatibility goal is ESAPI 15.6 and later. The generation profiles below are
-available now; builds and execution against real ESAPI installations are unverified.
+available now. A generated empty 18.0 plug-in has been compiled against locally
+installed 18.0 DLLs; Eclipse execution and other profiles' builds remain unverified.
 Unknown versions are rejected rather than assigned a framework automatically.
 
 | ESAPI profile | Target framework | Platform | Notes |
@@ -66,6 +67,9 @@ templates are embedded; no other CLI files are required at runtime.
 .\esapi.exe new MyScript
 .\esapi.exe new MyScript18 --esapi-version 18 --output .\scripts
 .\esapi.exe new MyScript --dry-run --json
+.\esapi.exe info --json
+.\esapi.exe doctor --esapi-version 18 --json
+.\esapi.exe --version
 ```
 
 The first command generates:
@@ -102,7 +106,7 @@ esapi new <name> [--type plugin] [--output <parent>] [--force]
   forced overwrite can leave a mix of old and new generated files; the operation
   is not a transaction across all four files.
 - The default is explicitly ESAPI 15.6, targeting .NET Framework 4.5 using the
-  15.5 framework setting. No ESAPI version or installation-path detection is performed yet.
+  15.5 framework setting. `new` does not detect installations or inspect DLLs.
 - `--dry-run` validates and renders the same templates, then reports each generated
   file as `create` or `overwrite` without creating even parent directories. It is a
   filesystem snapshot; it does not reserve the destination or test write access.
@@ -148,16 +152,65 @@ Use a DLL directory without percent signs, including when setting `ESAPI_HOME`.
 References use `Private=False` to prevent copying ESAPI DLLs to the output directory.
 The generated project reports missing DLLs at build time. It never downloads an SDK.
 
+## `esapi info` and `esapi doctor`
+
+```powershell
+.\esapi.exe info --esapi-version 18 --json
+.\esapi.exe doctor --esapi-version 18 --json
+.\esapi.exe doctor --esapi-version 15.6 --esapi-path 'C:\path\to\ESAPI\API'
+```
+
+Both commands inspect OS/architecture, tool files, adjacent .NET SDK markers,
+the selected framework's reference-assembly markers, and the two ESAPI DLLs.
+They do not execute tools, load assemblies, use registry settings, install files,
+or modify projects. `info` returns observations and supported CLI capabilities even
+when dependencies are absent. `doctor` evaluates static requirements and exits `3`
+when they fail; its JSON retains the checks and observations on failure.
+
+ESAPI path precedence is `--esapi-path`, then `ESAPI_HOME`, then known paths for the
+selected profile: `%ProgramFiles(x86)%` / `%ProgramFiles%` / `%ProgramW6432%` under
+`Varian\RTM\<version>\esapi\API`. Invalid explicit/environment paths do not silently
+fall back. Multiple discovered directories require explicit selection. This search
+is limited; a missing candidate does not prove ESAPI is not installed elsewhere.
+
+Tools use `--dotnet-path` / `--msbuild-path`, then PATH, then standard Windows
+installation paths. MSBuild discovery covers Visual Studio `Current` / `15.0`
+layouts and prefers `Bin\amd64` within one installation. Multiple installations
+are reported as ambiguous. A separate .NET SDK is optional when MSBuild is present;
+a dotnet runtime host without SDK markers does not satisfy the toolchain check.
+
+Targeting-pack discovery checks `mscorlib.dll` and `RedistList\FrameworkList.xml`
+under the selected `.NETFramework\vX.Y` reference-assembly directory. A runtime or
+an empty framework directory does not satisfy this check. `--targeting-pack-path`
+inspects a custom directory only; it does not configure MSBuild or generated projects.
+
+DLL inspection reports PE32 / PE32+, the machine field, DLL characteristics, and
+the CLR header declaration. It does not derive an installed ESAPI version or infer
+x86-only execution from PE32/I386. Assembly identity, CLR flags, actual tool
+execution, compilation, licensing, and Eclipse execution remain explicitly unverified.
+Passing `doctor` means its static checks passed, not that a script can run.
+
+See [real-machine verification](docs/REAL_MACHINE_TEST.md) for the next testing steps
+and the [CLI contract](docs/CLI_CONTRACT.md) for fields and diagnostics.
+
+## Version and build identity
+
+`esapi version` and `esapi --version` report the CLI's version, not the ESAPI SDK's.
+JSON also includes the commit, dirty-worktree indicator, and Go version when available.
+Development builds use `0.1.0-dev`. Release builders can set the version/commit using
+Go linker `-X` flags targeting `internal/buildinfo.Version` and `internal/buildinfo.Commit`
+(fully qualified with the module path). No wall-clock build date is embedded.
+
 ## Development
 
 See [docs/DESIGN.md](docs/DESIGN.md) for the intended v1 scope and later roadmap.
 Version profiles are centralized in `internal/scaffold/config.go`; templates live
 under `internal/scaffold/templates` for Go `embed`.
 
-Next steps are environment diagnostics and inspection (`doctor` / `info`), basic
-static project validation (`check`), and the v2 build command. `info --json` will
-also report supported capabilities. Read-only inspections must distinguish facts,
-failed checks, and checks that could not be performed.
+Next steps are basic static project validation (`check`) and the v2 build command.
+Read-only inspections distinguish observations, failed checks, and checks that
+could not be performed. Tests use independent metadata/PE-header fixtures; vendor
+DLLs are never required in CI.
 
 Internal reference material in `.local/` is ignored by Git and must not be added
 to commits or release artifacts. Tests use temporary directories and do not
