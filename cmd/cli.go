@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,6 +37,12 @@ func failed(command, code string, err error, exitCode int) response {
 
 // Run executes the CLI without prompting or exiting the calling process.
 func Run(args []string, stdout, stderr io.Writer) int {
+	return RunContext(context.Background(), args, stdout, stderr)
+}
+
+// RunContext propagates cancellation to external build processes. Run remains
+// available for existing callers that do not need cancellation.
+func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	args, jsonMode, formatErr := extractJSON(args)
 	command := "help"
 	if len(args) > 0 {
@@ -51,6 +58,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		result = runNew(args[1:])
 	case command == "check":
 		result = runCheck(args[1:])
+	case command == "build":
+		result = runBuild(ctx, args[1:])
 	case command == "info" || command == "doctor":
 		result = runInspection(command, args[1:])
 	case command == "version" || command == "--version":

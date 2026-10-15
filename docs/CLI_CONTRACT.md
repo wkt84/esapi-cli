@@ -1,7 +1,7 @@
 # CLI contract: schema version 1
 
 This contract describes implemented behavior. Commands currently available: `new`,
-`info`, `doctor`, `check`, `version` (`--version` alias), and help. `build` is planned.
+`info`, `doctor`, `check`, `build`, `version` (`--version` alias), and help.
 
 ## Invocation and streams
 
@@ -30,7 +30,7 @@ Human-readable wording is not a stable parsing interface.
 | `schemaVersion` | integer | Currently `1` |
 | `command` | string | Requested command; root help uses `help` |
 | `ok` | boolean | Whether the operation succeeded; agrees with exit code 0 |
-| `data` | object or null | Command result; null for argument/new failures; doctor/check retain inspection reports on failure |
+| `data` | object or null | Command result; null for argument/new failures; doctor/check/build retain reports on command failure |
 | `diagnostics` | array | Empty on current successful operations; structured errors on failure |
 
 Help uses `data.usage` containing the help text, including `new --help --json`.
@@ -109,8 +109,8 @@ identifiers. Filesystem changes between planning and execution can change action
 | 0 | Success or requested help, including a successful dry-run |
 | 1 | Filesystem / operational failure, including destination conflicts |
 | 2 | Invalid command, arguments, project name, type, version, or DLL path |
-| 3 | Failed static environment requirements from `doctor` |
-| 4 | Reserved for build failures |
+| 3 | Failed static environment requirements from `doctor`, or build host/tool selection failure |
+| 4 | Build tool failure, timeout, or cancellation |
 | 5 | Failed or unevaluable static project requirements from `check` |
 
 | Diagnostic code | Exit | Meaning |
@@ -273,3 +273,81 @@ false passing report.
 | `PROJECT_REFERENCE_COPY_LOCAL` | 5 | ESAPI reference lacks explicit Private=False |
 | `PROJECT_SOURCE_REQUIRED` | 5 | No explicit Compile item exists |
 | `PROJECT_SOURCE_UNAVAILABLE` | 5 | Compile path is not an accessible regular file |
+
+## `build`
+
+`build` accepts `--project`, `--msbuild-path`, `--dotnet-path`, `--esapi-path`,
+`--release`, `--debug`, `--clean`, `--verbose`, `--timeout`, `--dry-run`, and help/JSON.
+There are no positional arguments or arbitrary pass-through MSBuild switches.
+Native/dotnet explicit paths conflict, as do enabled release/debug flags. Timeout
+must be greater than zero and at most 24h (default 5m). Invalid flags return exit 2
+with `data: null`. Project selection uses the same rules/codes as `check` and retains
+candidate paths in `data`; other plan fields may be empty/null before selection.
+
+Build planning requires Windows amd64. Windows process creation requires JOB_LIST
+support (Windows 10+); unavailable process-management APIs fail launch with exit 1.
+Native MSBuild is preferred; missing native MSBuild permits a dotnet SDK fallback.
+Explicit invalid tools, ambiguous native discovery, runtime-only dotnet hosts, and
+unsupported hosts fail planning with exit 3 and retain partial plan/tool facts.
+Discovered files are observations, not proof of successful tool execution. There is
+no automatic retry using another tool. `check`/`doctor` do not gate this command.
+
+`build.data` contains:
+
+- `project` / `candidates`: project selection facts, as in `check`.
+- `tool`: `kind` (`msbuild`/`dotnet`), plus the path/tool facts used by `info`
+  (`path`, `source`, `status`, `candidates`, `sdks`, `sdkStatus`, optional `issue`).
+- `arguments`: ordered argv strings, excluding the executable. Dotnet's first
+  argument is `msbuild`. Paths are arguments, not a shell command.
+- `workingDirectory`: the selected project's directory.
+- `configuration`: `Release` by default or `Debug`.
+- `target`: `Build`, or `Rebuild` for `--clean`.
+- `esapiPath`: absolute global-property override from `--esapi-path`, otherwise empty.
+  The corresponding argument uses MSBuild percent escaping; the path field is literal.
+- `timeout`: normalized Go duration string for execution, excluding discovery/cleanup.
+- `environmentOverrides`: child-only `NAME=value` overrides. Other process environment
+  values are inherited and are not enumerated. No persistent settings change.
+- `status`: `planned`, `notStarted`, `succeeded`, `failed`, `timedOut`, or `cancelled`.
+- `started`: whether a tool process was successfully created.
+- `exitCode`: tool exit integer, or null when none was observed. This is distinct
+  from the CLI exit code, including on Windows forced process termination.
+- `stdout` / `stderr`: captured tool logs. Each retains at most 1 MiB of source bytes;
+  invalid UTF-8 sequences are replaced with U+FFFD. JSON escaping/replacement may
+  make the encoded JSON larger. No compiler-message parsing contract is provided.
+- `stdoutTruncated` / `stderrTruncated`: whether bytes beyond the limit were discarded.
+- optional `cleanupError`: details when tree termination or pipe draining failed.
+
+A successful dry-run has status `planned`, `started: false`, `exitCode: null`, empty
+logs, and no tool execution/file writes. Actual execution retains the same invocation
+fields. Tool failures/timeouts/cancellation retain observations and partial logs.
+The wrapper requests no restore; MSBuild/project code can still have its own side
+effects. x64, deterministic compilation, single-node builds, disabled automatic
+response files, node reuse, and shared compilation are explicit invocation arguments.
+The child-only overrides shown in the plan suppress dotnet telemetry/welcome
+messages and workload update notifications, and disable MSBuild server forwarding
+and node reuse. SDK/global.json,
+imports, targets, and project dependencies are still evaluated by the selected tool.
+
+Ctrl+C cancels the execution context. The process and descendants are terminated,
+and logs are drained; the process wait and log drain each have a 2-second cleanup
+bound. Normal completion also terminates remaining descendants. Windows uses
+creation-time job assignment and kill-on-close, avoiding a process-assignment race.
+An additional `BUILD_CLEANUP_FAILED` diagnostic reports termination/drain errors.
+Exit 4 is retained on timeout/cancellation even if cleanup also fails; infrastructure
+errors otherwise exit 1. Completed/partial build outputs are not rolled back.
+The product build command is Windows-only; Unix process fixtures run in Linux CI.
+
+In human mode a report and both captured tool streams go to stdout after completion;
+wrapper diagnostics go to stderr. JSON mode always contains exactly one object on
+stdout and no tool output on the CLI stderr stream.
+
+| Diagnostic code | Exit | Meaning |
+| --- | --- | --- |
+| `BUILD_HOST_UNSUPPORTED` | 3 | Build host is not Windows amd64 |
+| `BUILD_TOOL_UNAVAILABLE` | 3 | Selected executable/SDK is unavailable or ambiguous |
+| `BUILD_START_FAILED` | 1 | Tool/process-tree setup could not start a process |
+| `BUILD_PROCESS_FAILED` | 1 | Process waiting or log/termination infrastructure failed |
+| `BUILD_FAILED` | 4 | Tool returned a nonzero exit code; inspect logs |
+| `BUILD_TIMEOUT` | 4 | Execution exceeded the selected duration |
+| `BUILD_CANCELLED` | 4 | Caller context or Ctrl+C interrupted execution |
+| `BUILD_CLEANUP_FAILED` | 1 or 4 | Additional termination/drain error; accompanies primary failure |

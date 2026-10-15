@@ -19,7 +19,7 @@ func TestInfoJSONIncludesCapabilitiesAndPartialFacts(t *testing.T) {
 	if !result.OK || result.Command != "info" || len(result.Diagnostics) != 0 || data.CLI.Version == "" || data.Environment.ESAPI.Status != "missing" || data.Environment.ESAPI.Source != "argument" {
 		t.Fatalf("invalid info response: %s", result.Data)
 	}
-	if len(data.Capabilities.Commands) != 5 || len(data.Capabilities.Profiles) != 7 || data.Capabilities.SchemaVersions[0] != 1 || data.Environment.Profile.Version != "18.0" {
+	if len(data.Capabilities.Commands) != 6 || len(data.Capabilities.Profiles) != 7 || data.Capabilities.SchemaVersions[0] != 1 || data.Environment.Profile.Version != "18.0" {
 		t.Fatalf("capabilities/profile selection incomplete: %s", result.Data)
 	}
 }

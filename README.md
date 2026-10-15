@@ -11,11 +11,12 @@ and Script Wizard resources are not distributed with this tool.
 
 ## Status
 
-Available commands: `new`, `info`, `doctor`, `check`, and `version` (`--version` alias), with
-structured `--json` output. Scaffolding also supports `--dry-run`. Environment
+Available commands: `new`, `info`, `doctor`, `check`, `build`, and `version`
+(`--version` alias), with structured `--json` output. Scaffolding and build planning
+also support `--dry-run`. Environment
 inspection is read-only and includes limited, documented known-path discovery.
-Static project validation checks conventional plug-in declarations. A build command
-remains planned.
+Static project validation checks conventional plug-in declarations. Windows builds
+use the installed MSBuild toolchain with bounded execution and captured logs.
 
 ## Design direction
 
@@ -28,7 +29,7 @@ remains planned.
 - Read-only commands will not install dependencies or change persistent settings.
   Ambiguous project selection will require an explicit `--project` argument.
 - JSON fields, diagnostic codes, and exit codes are compatibility contracts.
-  External build processes will support cancellation and bounded execution.
+  External build processes support cancellation and bounded execution.
 - Agent support comes from the CLI contract. Built-in LLM integration is outside
   the v1 scope.
 
@@ -72,6 +73,8 @@ templates are embedded; no other CLI files are required at runtime.
 .\esapi.exe info --json
 .\esapi.exe doctor --esapi-version 18 --json
 .\esapi.exe check --project .\MyScript\MyScript.csproj --json
+.\esapi.exe build --project .\MyScript\MyScript.csproj --dry-run --json
+.\esapi.exe build --project .\MyScript\MyScript.csproj --release --json
 .\esapi.exe --version
 ```
 
@@ -242,6 +245,63 @@ inspection, and validation failures; malformed arguments return `data: null`.
 In human mode the report goes to stdout and diagnostics to stderr. Inspection
 does not modify files, invoke tools, or load assemblies.
 
+## `esapi build`
+
+```powershell
+.\esapi.exe build --project .\MyScript\MyScript.csproj --dry-run --json
+.\esapi.exe build --project .\MyScript\MyScript.csproj --esapi-path 'C:\path\to\ESAPI\API' --json
+.\esapi.exe build --project .\MyScript\MyScript.csproj --debug --clean --timeout 2m
+```
+
+Builds require Windows amd64 (Windows 10 or later for process-tree management).
+Project selection follows `check`: exactly one regular `.csproj` in the current
+directory, or an explicit `--project`. No recursive selection or prompt occurs.
+An explicit `--msbuild-path` or `--dotnet-path` selects the tool; these flags are
+mutually exclusive. Otherwise native MSBuild is preferred using the same discovery
+as `info`. A missing native tool may fall back to `dotnet msbuild` with adjacent SDK
+markers. An invalid or ambiguous selected tool fails without choosing a different one.
+MSBuild's evaluation, including imports, targets, and dotnet SDK/global.json selection,
+remains authoritative. `check` and `doctor` are independent optional checks, so a
+conditional project is not rejected merely because static inspection needs evaluation.
+
+The default configuration is Release; `--debug` selects Debug. `--release` and
+`--debug` cannot both be enabled. `--clean` runs the MSBuild Rebuild target, which
+cleans and builds; it does not implement custom directory deletion. The invocation
+sets x64, one build node, disabled node reuse/shared compilation, and compiler
+`Deterministic=true`. The toolchain/project/inputs still determine reproducibility.
+Automatic response-file loading is disabled. The CLI does not request restore,
+installation, or downloads; project/import/target code is executed by MSBuild and
+may perform additional work. Build outputs and tool caches are normal side effects.
+
+`--esapi-path` sets the global MSBuild `ESAPI_HOME` property for this build, overriding
+project and environment values. The path is made absolute and escaped for MSBuild;
+percent-containing paths remain unsupported. Without it, project/environment binding
+applies; build does not silently choose an installed ESAPI release. The CLI does not
+persist environment changes. Its explicit child-only environment overrides disable
+dotnet telemetry/welcome messages/workload update notifications, MSBuild server
+forwarding, and node reuse; `--dry-run` lists the overrides without exposing the
+inherited environment. See Microsoft's [CLI environment variable reference](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-environment-variables).
+
+`--timeout` accepts a positive Go duration up to 24h (default 5m). Ctrl+C cancels the
+build. Windows creates the tool directly in a job that terminates its descendant
+processes on timeout, interruption, or completion, including if the parent tool exits
+before a child. Cleanup/draining may take up to two additional 2-second waits after
+the execution timeout. `BUILD_CLEANUP_FAILED` reports cleanup problems separately.
+Completed/partial build outputs are retained on failure or cancellation.
+
+`--dry-run` reports the executable, argument array, working directory, configuration,
+target, timeout, and child environment overrides without running tools or writing
+files. It inspects file presence only; it cannot prove a tool will start or build.
+Both output streams are captured and drained, retaining the first 1 MiB of bytes
+per stream with truncation flags. Logs are returned after execution, including in
+human mode; `--verbose` requests detailed MSBuild logs. The CLI does not parse
+localized compiler messages as a stable API.
+
+JSON still emits exactly one object. `data` retains the plan, status, tool exit code,
+and logs on failure. Exit codes: `0` success/planned, `1` launch/process I/O failure,
+`2` invalid arguments/project selection, `3` unsupported host/unavailable tool,
+`4` tool failure, timeout, or cancellation. See the [CLI contract](docs/CLI_CONTRACT.md).
+
 ## Version and build identity
 
 `esapi version` and `esapi --version` report the CLI's version, not the ESAPI SDK's.
@@ -256,7 +316,8 @@ See [docs/DESIGN.md](docs/DESIGN.md) for the intended v1 scope and later roadmap
 Version profiles are centralized in `internal/scaffold/config.go`; templates live
 under `internal/scaffold/templates` for Go `embed`.
 
-The next step is the v2 build command with cancellation and bounded execution.
+The generation, inspection, validation, and build workflow is implemented; Eclipse
+execution and additional project types remain separate roadmap items.
 Read-only inspections distinguish observations, failed checks, and checks that
 could not be performed. Tests use independent metadata/PE-header fixtures; vendor
 DLLs are never required in CI.

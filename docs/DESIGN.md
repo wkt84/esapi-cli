@@ -771,6 +771,25 @@ options:
 --verbose
 ```
 
+初期実装:
+
+- Windows amd64 を対象とし、従来形式 project に native MSBuild を優先する。
+  不在時は SDK marker のある `dotnet msbuild` を選択できる。
+  `--msbuild-path` / `--dotnet-path` は排他で、曖昧な候補は暗黙に fallback しない。
+- `--project` と候補選択の規則は `check` と共有する。`check` / `doctor` は独立した
+  補助検査とし、条件式を持つ project の build を静的検査だけで拒否しない。
+- default Release、`--debug` で Debug、`--clean` で MSBuild Rebuild を呼ぶ。
+  x64 / Deterministic / single node / node reuse off / shared compilation off を指定する。
+  response file の自動読込を無効にし、restore は要求しない。project target 自体の処理は MSBuild に委ねる。
+- `--esapi-path` は当該 build の `ESAPI_HOME` global property。未指定なら project / environment の binding を維持する。
+- `--timeout` は default 5m、正の duration、最大24h。Ctrl+C / caller context の中断を伝える。
+  Windows 10+ の creation-time Job assignment と kill-on-close で子プロセスも管理する。
+- `--dry-run` は tool / argv / working directory / environment override を返すのみ。
+  tool logs は各 stream 先頭1 MiBを保持し、超過分も読み捨てて pipe を詰まらせない。
+  JSON は失敗時も plan / tool exit code / status / logs を保持し、timeout / cancelled をコードで区別する。
+
+schema と終了コードの詳細は CLI_CONTRACT.md、実機確認手順は REAL_MACHINE_TEST.md を参照。
+
 ---
 
 ## 24.2 Standalone ESAPI project
