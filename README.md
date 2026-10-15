@@ -11,10 +11,11 @@ and Script Wizard resources are not distributed with this tool.
 
 ## Status
 
-Available commands: `new`, `info`, `doctor`, and `version` (`--version` alias), with
+Available commands: `new`, `info`, `doctor`, `check`, and `version` (`--version` alias), with
 structured `--json` output. Scaffolding also supports `--dry-run`. Environment
 inspection is read-only and includes limited, documented known-path discovery.
-Static project validation (`check`) and a build command remain planned.
+Static project validation checks conventional plug-in declarations. A build command
+remains planned.
 
 ## Design direction
 
@@ -70,6 +71,7 @@ templates are embedded; no other CLI files are required at runtime.
 .\esapi.exe new MyScript --dry-run --json
 .\esapi.exe info --json
 .\esapi.exe doctor --esapi-version 18 --json
+.\esapi.exe check --project .\MyScript\MyScript.csproj --json
 .\esapi.exe --version
 ```
 
@@ -196,6 +198,50 @@ Passing `doctor` means its static checks passed, not that a script can run.
 See [real-machine verification](docs/REAL_MACHINE_TEST.md) for the next testing steps
 and the [CLI contract](docs/CLI_CONTRACT.md) for fields and diagnostics.
 
+## `esapi check`
+
+```powershell
+.\esapi.exe check --project .\MyScript\MyScript.csproj --json
+.\esapi.exe check --project .\Existing\Existing.csproj --esapi-version 15.6
+.\esapi.exe check --project .\MyScript\MyScript.csproj --esapi-path 'C:\path\to\ESAPI\API'
+```
+
+Without `--project`, the current directory must contain exactly one regular
+`.csproj` file. Discovery is not recursive and excludes symlinks. Multiple candidates
+are returned in sorted order with `PROJECT_AMBIGUOUS`; select one explicitly.
+An explicit file may be a symlink to a regular project.
+
+The checker reads conventional non-SDK UTF-8 project XML (up to 4 MiB). It checks
+the declared ESAPI profile and target framework, `PlatformTarget=x64`, `OutputType=Library`,
+an assembly name ending in `.esapi`, exactly one reference to each ESAPI DLL with
+`Private=False`, and the existence of both referenced DLL files and explicit
+`Compile Include` source files. File existence is not assembly-identity validation.
+`--esapi-version` supplies the expected profile when `ESAPIVersion` is absent;
+if both are present, they must agree. It does not infer a profile from installed DLLs.
+
+Paths are relative to the project directory. Supported path substitutions are
+`$(MSBuildProjectDirectory)` and `$(ESAPI_HOME)`. `ESAPI_HOME` comes from the inspection
+override `--esapi-path`, then the project declaration, then the environment. The
+generated environment-reading expression is recognized without executing property
+functions. Literal MSBuild percent escapes are decoded once. A relative
+`--esapi-path` is resolved against the CLI's working directory; the override does
+not modify the project or configure a subsequent build.
+
+Conditional checked settings/items, globs, unknown expressions, and custom imports
+return `PROJECT_EVALUATION_REQUIRED`. Such required checks remain `skip` and prevent
+success. The checker does not implement MSBuild evaluation: implicit imports such
+as `Directory.Build.targets`, target bodies, other dependency types, C# entry-point
+semantics, compilation, and Eclipse execution remain unverified. Use MSBuild for
+evaluation and compilation and `doctor` separately for environment/header inspection.
+Passing means only that the documented declaration checks passed.
+
+Exit codes are `0` for passing checks/help, `1` for operational errors, `2` for
+invalid arguments or project selection, and `5` for failed or unevaluable project
+requirements. Reports and candidate lists remain in JSON `data` on selection,
+inspection, and validation failures; malformed arguments return `data: null`.
+In human mode the report goes to stdout and diagnostics to stderr. Inspection
+does not modify files, invoke tools, or load assemblies.
+
 ## Version and build identity
 
 `esapi version` and `esapi --version` report the CLI's version, not the ESAPI SDK's.
@@ -210,7 +256,7 @@ See [docs/DESIGN.md](docs/DESIGN.md) for the intended v1 scope and later roadmap
 Version profiles are centralized in `internal/scaffold/config.go`; templates live
 under `internal/scaffold/templates` for Go `embed`.
 
-Next steps are basic static project validation (`check`) and the v2 build command.
+The next step is the v2 build command with cancellation and bounded execution.
 Read-only inspections distinguish observations, failed checks, and checks that
 could not be performed. Tests use independent metadata/PE-header fixtures; vendor
 DLLs are never required in CI.

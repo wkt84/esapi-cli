@@ -60,11 +60,14 @@ executing the generated script. Use a new output directory; no `--force` is need
 ```powershell
 $sdkPath = 'D:\path\to\ESAPI\API'
 .\esapi.exe new SmokeTest --esapi-version $esapiVersion --esapi-path $sdkPath --output .\smoke-output
+.\esapi.exe check --project .\smoke-output\SmokeTest\SmokeTest.csproj --json
 $msbuildPath = 'C:\path\to\MSBuild.exe' # Use the path reported by info.
 & $msbuildPath .\smoke-output\SmokeTest\SmokeTest.csproj /p:Configuration=Release
 ```
 
 If using the dotnet SDK alternative, invoke `dotnet msbuild` on the same project.
+`check` should exit 0 for the generated project with existing DLLs and source files.
+It does not verify the targeting pack or compile code; compare `doctor` separately.
 Confirm `bin\Release\SmokeTest.esapi.dll` exists and neither ESAPI DLL was copied
 to that output directory. A failure should be compared with the preceding doctor
 report; static checks intentionally do not execute compilers or choose a project SDK.
@@ -88,6 +91,9 @@ compiled successfully against those DLLs, and vendor DLLs were not copied to out
 The 15.6 DLL path was also found; its doctor run correctly failed because the local
 Framework 4.5 reference-assembly markers were missing. A 15.6 build was not attempted.
 No Eclipse execution was performed.
+The `check` command also passed on generated 15.6 and 18.0 projects referencing
+the installed DLL files. That checks declarations and file existence only; it
+does not change the missing 4.5 targeting-pack result or establish build readiness.
 The 18.1 and 19.0 generation profiles follow their reference guides' Framework 4.8
 requirements; matching SDK builds and Eclipse execution have not been tested.
 
