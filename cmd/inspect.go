@@ -18,10 +18,12 @@ Commands:
   info         Inspect environment facts and supported CLI capabilities
   doctor       Diagnose static development-environment requirements
   check        Inspect ESAPI project declarations and referenced files
+  build        Run the installed MSBuild toolchain with bounded execution
   version      Display the CLI version (--version is an alias)
 
 Use esapi <command> --help for options. Use --json for structured results.
-Commands do not prompt, execute discovered tools, or load ESAPI assemblies.
+Commands do not prompt. build executes the selected toolchain and project targets.
+info/doctor/check do not execute tools or load ESAPI assemblies.
 `
 
 func inspectionUsage(command string) string {
@@ -100,7 +102,7 @@ func runInspection(command string, args []string) response {
 		data := infoData{
 			CLI: buildinfo.Current(), Environment: environment,
 			Capabilities: capabilities{
-				Commands: []capability{{"new", true, true, false}, {"info", true, false, true}, {"doctor", true, false, true}, {"check", true, false, true}, {"version", true, false, true}},
+				Commands: []capability{{"new", true, true, false}, {"info", true, false, true}, {"doctor", true, false, true}, {"check", true, false, true}, {"build", true, true, false}, {"version", true, false, true}},
 				Profiles: scaffold.Profiles(), SchemaVersions: []int{1},
 			},
 		}
@@ -137,7 +139,7 @@ func formatInfo(data infoData) string {
 			fmt.Fprintf(&text, "  %s, machine=%s, CLR header declaration=%t\n", dll.PE.Format, dll.PE.Machine, dll.PE.HasCLRHeader)
 		}
 	}
-	fmt.Fprintln(&text, "Commands: new, info, doctor, check, version. Use --json for capabilities and full observations.")
+	fmt.Fprintln(&text, "Commands: new, info, doctor, check, build, version. Use --json for capabilities and full observations.")
 	fmt.Fprintln(&text, "Tool execution, assembly identity/version, and Eclipse compatibility are unverified.")
 	return text.String()
 }

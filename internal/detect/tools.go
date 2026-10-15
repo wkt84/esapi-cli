@@ -6,6 +6,12 @@ import (
 	"sort"
 )
 
+// BuildTools exposes the same bounded tool discovery used by info and doctor.
+// It does not inspect SDK assemblies or execute the selected tools.
+func (system System) BuildTools(msbuildPath, dotnetPath string) (ToolFact, ToolFact) {
+	return system.msbuild(msbuildPath), system.dotnet(dotnetPath)
+}
+
 func (system System) tool(explicit string, names, candidates []string) PathFact {
 	if explicit != "" {
 		return inspectPath(explicit, "argument", false)
