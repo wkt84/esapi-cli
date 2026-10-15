@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <OutputType>Library</OutputType>
+    <RootNamespace>VMS.TPS</RootNamespace>
+    <AssemblyName>{{.Name}}.esapi</AssemblyName>
+    <TargetFrameworkVersion>{{.TargetFramework}}</TargetFrameworkVersion>
+    <PlatformTarget>{{.Platform}}</PlatformTarget>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <ESAPIVersion>{{.Version}}</ESAPIVersion>
+{{if .ESAPIPath}}    <ESAPI_HOME>{{msbuild .ESAPIPath}}</ESAPI_HOME>
+{{else}}    <ESAPI_HOME>$([System.Environment]::GetEnvironmentVariable('ESAPI_HOME'))</ESAPI_HOME>
+{{end}}  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="VMS.TPS.Common.Model.API">
+      <HintPath>$(ESAPI_HOME)\VMS.TPS.Common.Model.API.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="VMS.TPS.Common.Model.Types">
+      <HintPath>$(ESAPI_HOME)\VMS.TPS.Common.Model.Types.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Script.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Target Name="ValidateESAPIReferences" BeforeTargets="ResolveReferences">
+    <Error Condition="'$(ESAPI_HOME)' == ''" Text="Set ESAPI_HOME to the directory containing both ESAPI DLLs, or regenerate with --esapi-path." />
+    <Error Condition="$(ESAPI_HOME.Contains('%25'))" Text="ESAPI_HOME must not contain a percent sign; choose a DLL directory without it." />
+    <Error Condition="!Exists('$(ESAPI_HOME)\VMS.TPS.Common.Model.API.dll')" Text="VMS.TPS.Common.Model.API.dll was not found in ESAPI_HOME." />
+    <Error Condition="!Exists('$(ESAPI_HOME)\VMS.TPS.Common.Model.Types.dll')" Text="VMS.TPS.Common.Model.Types.dll was not found in ESAPI_HOME." />
+  </Target>
+</Project>
