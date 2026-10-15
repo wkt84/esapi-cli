@@ -161,6 +161,8 @@ func TestInvalidOptionsDoNotCreateOutput(t *testing.T) {
 		{Name: "Example", ESAPIVersion: "20.0"},
 		{Name: "Example", ESAPIVersion: "auto"},
 		{Name: "Example", ESAPIPath: "sdk%25"},
+		{Name: "Example", ESAPIPath: `sdk"`},
+		{Name: "Example", ESAPIPath: "sdk\x00"},
 	} {
 		options.Output = filepath.Join(t.TempDir(), "not-created")
 		if _, err := Generate(options); !errors.Is(err, ErrInvalidOptions) {

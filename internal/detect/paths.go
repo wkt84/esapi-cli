@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/wkt84/esapi-cli/internal/scaffold"
 )
 
 func emptyFact(source string) PathFact {
@@ -100,8 +102,8 @@ func (system System) esapi(version, explicit string) PathFact {
 		}
 		fact = system.choose(candidates, true)
 	}
-	if strings.ContainsRune(fact.Path, '%') {
-		fact.Status, fact.Issue = "invalid", "percent-containing DLL paths are not supported by the generated MSBuild project"
+	if err := scaffold.ValidateESAPIPath(fact.Path); err != nil {
+		fact.Status, fact.Issue = "invalid", err.Error()
 	}
 	return fact
 }

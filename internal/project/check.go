@@ -321,6 +321,16 @@ func (i *inspector) inspectFile(value string, conditional, reference bool) File 
 		return file
 	}
 	file.Path = path
+	if reference {
+		if err := scaffold.ValidateESAPIPath(path); err != nil {
+			file.Status = "invalid"
+			i.add("project.referencePath", false, "PROJECT_REFERENCE_PATH_INVALID", err.Error(), path)
+			if detail, ok := err.(*diagnostic.Error); ok {
+				i.diagnostics[len(i.diagnostics)-1].Hint = detail.Hint
+			}
+			return file
+		}
+	}
 	info, err := os.Stat(path)
 	file.Status = "missing"
 	if err == nil && info.Mode().IsRegular() {

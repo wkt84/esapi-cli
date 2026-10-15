@@ -17,6 +17,9 @@ import (
 
 // The child accepts MSBuild-shaped argv before testing's own flag parsing.
 func TestMain(m *testing.M) {
+	if os.Getenv("ESAPI_TEST_CLI_RUN") == "1" {
+		os.Exit(Run(os.Args[1:], os.Stdout, os.Stderr))
+	}
 	if mode := os.Getenv("ESAPI_TEST_CLI_TOOL"); mode != "" {
 		if mode == "failure" {
 			fmt.Fprint(os.Stderr, "fixture compile failure")

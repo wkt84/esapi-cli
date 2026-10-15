@@ -120,6 +120,7 @@ func TestInvalidAndUnevaluableDeclarations(t *testing.T) {
 		{"missing-source", "Source.cs", "Missing.cs", "PROJECT_SOURCE_UNAVAILABLE"},
 		{"missing-api", `$(ESAPI_HOME)\VMS.TPS.Common.Model.API.dll`, `$(ESAPI_HOME)\Missing.dll`, "PROJECT_REFERENCE_UNAVAILABLE"},
 		{"wrong-dll", `$(ESAPI_HOME)\VMS.TPS.Common.Model.API.dll`, `$(ESAPI_HOME)\VMS.TPS.Common.Model.Types.dll`, "PROJECT_REFERENCE_PATH_INVALID"},
+		{"quoted-sdk", `$(MSBuildProjectDirectory)\sdk`, `$(MSBuildProjectDirectory)\sdk&quot;`, "PROJECT_REFERENCE_PATH_INVALID"},
 		{"unresolved-path", `$(ESAPI_HOME)\VMS.TPS.Common.Model.API.dll`, `$(Unknown)\API.dll`, "PROJECT_EVALUATION_REQUIRED"},
 		{"missing-reference", `Include="VMS.TPS.Common.Model.API"`, `Include="Other.API"`, "PROJECT_REFERENCE_INVALID"},
 		{"missing-compile", `<Compile Include="Source.cs" />`, "", "PROJECT_SOURCE_REQUIRED"},
@@ -171,6 +172,11 @@ func TestXMLBoundariesAndAccessFailure(t *testing.T) {
 }
 
 func TestExplicitProfileAndPathPrecedence(t *testing.T) {
+	malformed := setup(t, strings.Replace(fixture, `$(MSBuildProjectDirectory)\sdk`, `$(MSBuildProjectDirectory)\sdk&quot;`, 1))
+	fixed, details, accessErr := Inspect(malformed, Options{ESAPIPath: filepath.Join(filepath.Dir(malformed.Project), "sdk")})
+	if accessErr != nil || !fixed.StaticChecksPassed || len(details) != 0 {
+		t.Fatalf("explicit valid override did not repair malformed project binding: %+v / %v", details, accessErr)
+	}
 	selection := setup(t, strings.Replace(fixture, "<ESAPIVersion>15.6</ESAPIVersion>", "", 1))
 	report, diagnostics, err := Inspect(selection, Options{ESAPIVersion: "15.6"})
 	if err != nil || !report.StaticChecksPassed || len(diagnostics) != 0 || report.Properties.ESAPIVersionSource != "argument" {

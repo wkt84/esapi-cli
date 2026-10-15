@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/wkt84/esapi-cli/internal/diagnostic"
 )
@@ -54,14 +53,16 @@ func Plan(options Options) (*ProjectPlan, error) {
 	data := projectData{Name: options.Name, VersionConfig: version}
 	source := "environment"
 	if options.ESAPIPath != "" {
+		if err := ValidateESAPIPath(options.ESAPIPath); err != nil {
+			return nil, err
+		}
 		source = "argument"
 		data.ESAPIPath, err = filepath.Abs(options.ESAPIPath)
 		if err != nil {
 			return nil, diagnostic.New("INVALID_ESAPI_PATH", fmt.Sprintf("invalid ESAPI path: %v", err), ErrInvalidOptions)
 		}
-		// The MSBuild reference/compiler pipeline can decode percent escapes twice.
-		if strings.ContainsRune(data.ESAPIPath, '%') {
-			return nil, diagnostic.New("INVALID_ESAPI_PATH", "ESAPI paths containing a percent sign are not supported; choose a DLL directory without it", ErrInvalidOptions)
+		if err := ValidateESAPIPath(data.ESAPIPath); err != nil {
+			return nil, err
 		}
 	}
 	files, err := render(data)

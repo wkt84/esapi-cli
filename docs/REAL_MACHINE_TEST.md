@@ -133,8 +133,10 @@ executed test. The report showed:
   `diagnostics: []`. Tool execution, assembly identity, and Eclipse runtime checks
   remained optional `skip` observations.
 
-The CLI version/commit and shell exit code were not included in the submitted
-report. No successful 15.6 build or Eclipse execution is established by this result.
+The initial doctor submission did not include CLI identity or a shell exit code.
+Follow-up output identifies CLI `0.1.0-dev`, clean commit
+`c2e616ddc745871fbe6b5385284b057a2f10d81b`, built with Go 1.27.2. No successful
+15.6 build or Eclipse execution is established by these results.
 Machine-specific user directories and the raw report are not committed.
 
 The next step on that workstation is to record CLI identity and run generation,
@@ -154,3 +156,33 @@ Expected: check/build exit 0, build `status: succeeded`, tool `exitCode: 0`, and
 `Smoke156\bin\Release\Smoke156.esapi.dll` present without copied vendor DLLs.
 If compilation fails, retain the build JSON including tool logs and diagnostic
 codes. Eclipse execution remains the separate verification in step 3 above.
+
+### First build attempt: malformed SDK directory
+
+The user subsequently generated the project with a spaced SDK directory ending
+in a backslash. The stored SDK value ended in `API"`, so check could not access
+either reference. Native VS 2019 MSBuild started but returned tool exit 1 / CLI
+exit 4 / `BUILD_FAILED`, logging `MSB3246` with illegal-path-character details and
+a missing API DLL error. This does not establish DLL corruption.
+
+A local Windows PowerShell 5.1 reproduction confirmed that legacy native argument
+serialization changes this trailing backslash into a literal quote. The CLI now
+rejects such argument values before writing and gives a PowerShell-specific hint.
+Existing malformed projects receive `PROJECT_REFERENCE_PATH_INVALID` from check.
+The raw user log and personal filesystem paths are not committed.
+
+For this existing project, pass a correct directory without a trailing backslash
+to both check and build. This also works with the original CLI executable:
+
+```powershell
+$sdkPath = 'C:\Program Files (x86)\Varian\RTM\15.6\esapi\API'
+.\esapi.exe check --project .\Smoke156\Smoke156.csproj --esapi-path $sdkPath --json
+.\esapi.exe build --project .\Smoke156\Smoke156.csproj --esapi-path $sdkPath --release --json
+```
+
+The override affects only that inspection/build. For a persistent correction,
+edit the project's `ESAPI_HOME` value to the correct directory without the stray
+quote, or generate a new project with a corrected argument and a new name.
+Do not use `new --force` merely to repair this path: it also replaces generated
+source files. The override was verified locally against an equivalently malformed
+18.0 project; the separate 15.6 workstation rerun is still pending.
