@@ -11,8 +11,9 @@ and Script Wizard resources are not distributed with this tool.
 
 ## Status
 
-Milestone 1 implements `esapi new` and its tests. `doctor`, `version`, automatic
-environment detection, and a build command are not implemented yet.
+The current milestone implements `esapi new`, `--json`, `--dry-run`, and their tests.
+`doctor`, `version`, automatic environment detection, and a build command are not
+implemented yet.
 Validation and build commands are planned capabilities.
 
 ## Design direction
@@ -21,8 +22,12 @@ Validation and build commands are planned capabilities.
 - Exit codes distinguish success, invalid arguments, and operational failures;
   diagnostics go to stderr and results go to stdout.
 - Generated files stay small and readable, and overwrite behavior is explicit.
-- Machine-readable output (`--json`) with a documented, versioned schema is planned.
-  Until that is implemented, human-readable messages are not a stable parsing API.
+- Machine-readable output (`--json`) follows a documented, versioned schema.
+  Human-readable messages are not a stable parsing API.
+- Read-only commands will not install dependencies or change persistent settings.
+  Ambiguous project selection will require an explicit `--project` argument.
+- JSON fields, diagnostic codes, and exit codes are compatibility contracts.
+  External build processes will support cancellation and bounded execution.
 - Agent support comes from the CLI contract. Built-in LLM integration is outside
   the v1 scope.
 
@@ -34,7 +39,7 @@ Unknown versions are rejected rather than assigned a framework automatically.
 
 | ESAPI profile | Target framework | Platform | Notes |
 | --- | --- | --- | --- |
-| 15.6 (default) | .NET Framework 4.5 | x64 | Provisional; confirm with an installed SDK / existing project |
+| 15.6 (default) | .NET Framework 4.5 | x64 | Uses the 15.5 framework setting; 15.6 documentation does not state a separate requirement |
 | 16.0, 16.1 | .NET Framework 4.6.1 | x64 | Based on reference documentation |
 | 17.0, 18.0 | .NET Framework 4.8 | x64 | Based on reference documentation |
 
@@ -60,6 +65,7 @@ templates are embedded; no other CLI files are required at runtime.
 ```powershell
 .\esapi.exe new MyScript
 .\esapi.exe new MyScript18 --esapi-version 18 --output .\scripts
+.\esapi.exe new MyScript --dry-run --json
 ```
 
 The first command generates:
@@ -81,6 +87,7 @@ The generated method is empty and patient-data writes are disabled.
 ```text
 esapi new <name> [--type plugin] [--output <parent>] [--force]
                  [--esapi-version <version>] [--esapi-path <dll-directory>]
+                 [--dry-run] [--json]
 ```
 
 - Names may contain 1-100 ASCII letters, digits, and underscores, starting with a
@@ -94,8 +101,14 @@ esapi new <name> [--type plugin] [--output <parent>] [--force]
   File replacement uses temporary files. A disk or permission error during a
   forced overwrite can leave a mix of old and new generated files; the operation
   is not a transaction across all four files.
-- The default is explicitly ESAPI 15.6, provisionally targeting .NET Framework
-  4.5. No ESAPI version or installation-path detection is performed in Milestone 1.
+- The default is explicitly ESAPI 15.6, targeting .NET Framework 4.5 using the
+  15.5 framework setting. No ESAPI version or installation-path detection is performed yet.
+- `--dry-run` validates and renders the same templates, then reports each generated
+  file as `create` or `overwrite` without creating even parent directories. It is a
+  filesystem snapshot; it does not reserve the destination or test write access.
+- `--json` emits one JSON object for success, help, or failure, including malformed
+  arguments. It can precede the command or follow its options. See the
+  [CLI contract](docs/CLI_CONTRACT.md) for the schema and diagnostic codes.
 - Exit codes: `0` success/help, `1` filesystem or other operational error,
   `2` invalid arguments.
 
@@ -140,6 +153,11 @@ The generated project reports missing DLLs at build time. It never downloads an 
 See [docs/DESIGN.md](docs/DESIGN.md) for the intended v1 scope and later roadmap.
 Version profiles are centralized in `internal/scaffold/config.go`; templates live
 under `internal/scaffold/templates` for Go `embed`.
+
+Next steps are environment diagnostics and inspection (`doctor` / `info`), basic
+static project validation (`check`), and the v2 build command. `info --json` will
+also report supported capabilities. Read-only inspections must distinguish facts,
+failed checks, and checks that could not be performed.
 
 Internal reference material in `.local/` is ignored by Git and must not be added
 to commits or release artifacts. Tests use temporary directories and do not
