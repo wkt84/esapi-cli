@@ -87,8 +87,8 @@ scripts. Do not treat a passing doctor report as evidence of clinical validation
 
 The local development machine has ESAPI 15.6 and 18.0 DLLs installed using the
 ESAPI installer, and does not have Eclipse installed. The available Eclipse 15.6
-environment is on a separate Windows 10/11 64-bit workstation and has not yet been
-tested with this CLI.
+environment is on a separate Windows 10/11 64-bit workstation; its reported doctor
+results are recorded below. Build and Eclipse execution there remain unverified.
 
 On 2026-10-15, local Windows checks found ESAPI 18.0 DLLs, native Visual Studio
 MSBuild, and the Framework 4.8 targeting pack. The generated empty 18.0 plug-in
@@ -112,11 +112,45 @@ override without shell interpretation. Two native Release/Rebuild outputs had
 identical DLL SHA-256 hashes with deterministic compilation enabled. These tests
 did not redistribute SDK files or run the generated plug-in.
 
-The next separate-workstation check is the same sequence with `$esapiVersion = '15.6'`
-on the Eclipse 15.6 development machine: confirm `doctor`, `check`, and build results.
-If reference assemblies or tools are missing, record those diagnostics before the
-normal Eclipse execution-validation step. The CLI does not install them automatically.
-
 CI uses independently authored filesystem/PE-header fixtures, including PE32/I386
 and PE32+/amd64 declarations, invalid files, ambiguous paths, and runtime-only
 dotnet hosts. Passing fixtures validate the inspector's behavior, not ESAPI compatibility.
+
+## Reported Eclipse 15.6 workstation verification
+
+On 2026-10-15, the user supplied `doctor --esapi-version 15.6 --json` output from
+the separate Eclipse workstation. This is a user-reported result, not a remotely
+executed test. The report showed:
+
+- Windows amd64, ESAPI 15.6 profile targeting Framework 4.5 / x64.
+- Visual Studio 2019 Community native amd64 MSBuild discovered as a single candidate.
+- The Framework 4.5 targeting-pack markers present, with no missing files.
+- The ESAPI 15.6 API directory discovered as a single candidate; both API and Types
+  DLLs reported PE32+ / amd64 with DLL and CLR-header declarations.
+- A dotnet host on PATH with SDK 2.1.801 markers. Native MSBuild remains the default
+  build choice, so that SDK is not selected merely because it is on PATH.
+- All required static checks passed: `ok: true`, `staticChecksPassed: true`, and
+  `diagnostics: []`. Tool execution, assembly identity, and Eclipse runtime checks
+  remained optional `skip` observations.
+
+The CLI version/commit and shell exit code were not included in the submitted
+report. No successful 15.6 build or Eclipse execution is established by this result.
+Machine-specific user directories and the raw report are not committed.
+
+The next step on that workstation is to record CLI identity and run generation,
+check, and build with the discovered DLL directory. Use a new project name if the
+example destination already exists; do not overwrite an existing project for this test.
+
+```powershell
+.\esapi.exe --version --json
+$sdkPath = 'C:\Program Files (x86)\Varian\RTM\15.6\esapi\API'
+.\esapi.exe new Smoke156 --esapi-version 15.6 --esapi-path $sdkPath
+.\esapi.exe check --project .\Smoke156\Smoke156.csproj --json
+.\esapi.exe build --project .\Smoke156\Smoke156.csproj --release --json
+$LASTEXITCODE
+```
+
+Expected: check/build exit 0, build `status: succeeded`, tool `exitCode: 0`, and
+`Smoke156\bin\Release\Smoke156.esapi.dll` present without copied vendor DLLs.
+If compilation fails, retain the build JSON including tool logs and diagnostic
+codes. Eclipse execution remains the separate verification in step 3 above.
