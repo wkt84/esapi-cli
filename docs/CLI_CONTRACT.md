@@ -121,7 +121,7 @@ identifiers. Filesystem changes between planning and execution can change action
 | `INVALID_PROJECT_NAME` | 2 | Name is invalid or reserved on Windows |
 | `UNSUPPORTED_PROJECT_TYPE` | 2 | Only `plugin` is available |
 | `UNSUPPORTED_ESAPI_VERSION` | 2 | No profile exists for the requested version |
-| `INVALID_ESAPI_PATH` | 2 | Explicit path is invalid or contains a percent sign |
+| `INVALID_ESAPI_PATH` | 2 | SDK argument is invalid or contains percent signs, literal double quotes, or control characters |
 | `DESTINATION_EXISTS` | 1 | Existing directory requires explicit overwrite permission |
 | `DESTINATION_CHANGED` | 1 | Destination changed during execution; inspect and retry |
 | `UNSAFE_DESTINATION` | 1 | Destination is a link, directory collision, or special file |
@@ -140,6 +140,10 @@ destination before retrying; `--force` is always an explicit choice.
 `--dotnet-path`, `--msbuild-path`, and `--targeting-pack-path`, plus help/JSON flags.
 Profiles are normalized using the same table as `new`. Tool/path flags identify
 local files for inspection only; they do not execute or configure the tools.
+SDK directory arguments with literal double quotes, control characters, or percent
+signs return `INVALID_ESAPI_PATH` / exit 2 with null data. A malformed `ESAPI_HOME`
+environment value remains an `invalid` path observation rather than an argument
+error; it does not silently fall back to discovery.
 Known installation discovery is Windows-only, bounded to the layouts documented
 in the README, and does not inspect registry settings or scan arbitrary disks.
 
@@ -268,7 +272,7 @@ false passing report.
 | `PROJECT_ASSEMBLY_NAME_INVALID` | 5 | AssemblyName does not have the plug-in output convention |
 | `PROJECT_OUTPUT_TYPE_INVALID` | 5 | OutputType is not Library |
 | `PROJECT_REFERENCE_INVALID` | 5 | Required direct ESAPI reference is missing or duplicated |
-| `PROJECT_REFERENCE_PATH_INVALID` | 5 | HintPath points to a different filename |
+| `PROJECT_REFERENCE_PATH_INVALID` | 5 | Reference path has invalid SDK syntax or points to a different filename |
 | `PROJECT_REFERENCE_UNAVAILABLE` | 5 | ESAPI reference path is not an accessible regular file |
 | `PROJECT_REFERENCE_COPY_LOCAL` | 5 | ESAPI reference lacks explicit Private=False |
 | `PROJECT_SOURCE_REQUIRED` | 5 | No explicit Compile item exists |

@@ -14,6 +14,28 @@ const DefaultVersion = "15.6"
 
 var ErrInvalidOptions = errors.New("invalid options")
 
+// ValidateESAPIPath checks the supported SDK-directory syntax without requiring
+// an installation. Never strip quotes: shell-corrupted arguments are invalid
+// input, not a different directory to guess or silently repair.
+func ValidateESAPIPath(path string) error {
+	if strings.ContainsRune(path, '"') {
+		err := diagnostic.New("INVALID_ESAPI_PATH", "ESAPI directory contains a literal double quote", ErrInvalidOptions)
+		err.Path = path
+		err.Hint = "Pass the directory without literal quote characters. In Windows PowerShell, remove the trailing backslash from a quoted directory argument before invoking the CLI."
+		return err
+	}
+	for _, char := range path {
+		if char < 32 || char == 127 {
+			return diagnostic.New("INVALID_ESAPI_PATH", "ESAPI directory must not contain control characters", ErrInvalidOptions)
+		}
+	}
+	if strings.ContainsRune(path, '%') {
+		// The MSBuild reference/compiler pipeline may decode escapes twice.
+		return diagnostic.New("INVALID_ESAPI_PATH", "ESAPI paths containing a percent sign are not supported; choose a DLL directory without it", ErrInvalidOptions)
+	}
+	return nil
+}
+
 type Options struct {
 	Name         string
 	Output       string

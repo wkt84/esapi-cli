@@ -93,6 +93,9 @@ func runInspection(command string, args []string) response {
 	if flags.NArg() != 0 {
 		return failed(command, "INVALID_ARGUMENTS", fmt.Errorf("%s accepts options only; use esapi %s --help", command, command), 2)
 	}
+	if err := scaffold.ValidateESAPIPath(options.ESAPIPath); err != nil {
+		return failed(command, "INVALID_ESAPI_PATH", err, 2)
+	}
 	profile, err := scaffold.ResolveVersion(version)
 	if err != nil {
 		return failed(command, "INVALID_ARGUMENTS", err, 2)

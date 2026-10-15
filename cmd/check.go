@@ -61,8 +61,8 @@ func runCheck(args []string) response {
 		}
 		options.ESAPIVersion = profile.Version
 	}
-	if strings.ContainsAny(options.ESAPIPath, "%\x00") {
-		return failed("check", "INVALID_ESAPI_PATH", fmt.Errorf("ESAPI path must not contain percent signs or NUL"), 2)
+	if err := scaffold.ValidateESAPIPath(options.ESAPIPath); err != nil {
+		return failed("check", "INVALID_ESAPI_PATH", err, 2)
 	}
 	selection, err := project.Select(path)
 	report := project.NewReport(selection)

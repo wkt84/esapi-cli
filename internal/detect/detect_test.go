@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/wkt84/esapi-cli/internal/scaffold"
@@ -183,6 +184,10 @@ func TestESAPIPathPrecedenceAndAmbiguity(t *testing.T) {
 	}
 	if fact := system.esapi("18.0", known1); fact.Source != "argument" || fact.Status != "found" {
 		t.Fatalf("explicit path did not override environment: %+v", fact)
+	}
+	values["ESAPI_HOME"] = known1 + `"`
+	if fact := system.esapi("18.0", ""); fact.Source != "environment" || fact.Status != "invalid" || !strings.Contains(fact.Issue, "double quote") {
+		t.Fatalf("malformed environment path was not diagnosed: %+v", fact)
 	}
 	delete(values, "ESAPI_HOME")
 	values["ProgramFiles"] = root2

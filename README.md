@@ -156,6 +156,16 @@ projects shared across machines. Paths are not required to exist during generati
 DLL-directory paths containing `%` are rejected because the MSBuild reference
 pipeline can decode percent sequences more than once and resolve the wrong path.
 Use a DLL directory without percent signs, including when setting `ESAPI_HOME`.
+Literal double quotes and control characters in SDK directory arguments are also
+rejected before generation or inspection; quote characters used by the shell must
+not become part of the directory value.
+
+When using Windows PowerShell 5.1 or legacy native argument passing, omit a trailing
+backslash from a spaced SDK directory argument. For example, pass
+`'C:\Program Files (x86)\Varian\RTM\15.6\esapi\API'` without a final `\`.
+The legacy serializer can turn that final backslash into a literal quote when
+invoking a native executable. The CLI reports `INVALID_ESAPI_PATH` and a hint rather
+than guessing a corrected directory. See Microsoft's [native argument-passing documentation](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_parsing#passing-arguments-that-contain-quote-characters).
 
 References use `Private=False` to prevent copying ESAPI DLLs to the output directory.
 The generated project reports missing DLLs at build time. It never downloads an SDK.

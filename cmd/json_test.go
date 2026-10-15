@@ -117,6 +117,30 @@ func TestJSONErrorContract(t *testing.T) {
 	}
 }
 
+func TestInvalidSDKDirectoryAcrossCommands(t *testing.T) {
+	for _, directory := range []string{`sdk"`, "sdk%25", "sdk\x00", "sdk\tAPI"} {
+		for _, command := range []string{"new", "info", "doctor", "check", "build"} {
+			t.Run(command+"/"+directory, func(t *testing.T) {
+				output := filepath.Join(t.TempDir(), "not-created")
+				args := []string{command, "--esapi-path", directory, "--json"}
+				if command == "new" {
+					args = append(args, "Example", "--output", output)
+				}
+				result := runJSON(t, args, 2)
+				if result.OK || string(result.Data) != "null" || len(result.Diagnostics) != 1 || result.Diagnostics[0].Code != "INVALID_ESAPI_PATH" {
+					t.Fatalf("invalid directory was not rejected: %+v", result)
+				}
+				if strings.ContainsRune(directory, '"') && !strings.Contains(result.Diagnostics[0].Hint, "Windows PowerShell") {
+					t.Fatal("missing actionable PowerShell quoting hint")
+				}
+				if _, err := os.Stat(output); !os.IsNotExist(err) {
+					t.Fatal("invalid directory created output")
+				}
+			})
+		}
+	}
+}
+
 func TestJSONHelpAndDelimiter(t *testing.T) {
 	for _, args := range [][]string{{"--json"}, {"new", "--help", "--json"}, {"--json=true", "--help"}} {
 		if result := runJSON(t, args, 0); !result.OK || !bytes.Contains(result.Data, []byte("Usage:")) {

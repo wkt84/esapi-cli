@@ -13,6 +13,7 @@ import (
 	"github.com/wkt84/esapi-cli/internal/detect"
 	"github.com/wkt84/esapi-cli/internal/diagnostic"
 	"github.com/wkt84/esapi-cli/internal/project"
+	"github.com/wkt84/esapi-cli/internal/scaffold"
 )
 
 const buildUsage = `Usage: esapi build [options]
@@ -70,8 +71,8 @@ func runBuild(parent context.Context, args []string) response {
 	if flags.NArg() != 0 || (release && options.Debug) || (options.MSBuildPath != "" && options.DotnetPath != "") || options.Timeout <= 0 || options.Timeout > 24*time.Hour {
 		return failed("build", "INVALID_ARGUMENTS", fmt.Errorf("invalid project arguments, conflicting options, or timeout; use esapi build --help"), 2)
 	}
-	if strings.ContainsAny(options.ESAPIPath, "%\x00") {
-		return failed("build", "INVALID_ESAPI_PATH", fmt.Errorf("ESAPI path must not contain percent signs or NUL"), 2)
+	if err := scaffold.ValidateESAPIPath(options.ESAPIPath); err != nil {
+		return failed("build", "INVALID_ESAPI_PATH", err, 2)
 	}
 	selection, err := project.Select(path)
 	if err != nil {
@@ -90,6 +91,10 @@ func runBuild(parent context.Context, args []string) response {
 	}
 	plan, err := build.NewPlan(selection, options, detect.CurrentSystem())
 	if err != nil {
+		var detail *diagnostic.Error
+		if errors.As(err, &detail) && detail.Code == "INVALID_ESAPI_PATH" {
+			return failed("build", "INVALID_ESAPI_PATH", err, 2)
+		}
 		result := failed("build", "BUILD_TOOL_UNAVAILABLE", err, 3)
 		result.Data = build.Result{Plan: plan, Status: "notStarted"}
 		result.text = formatBuild(build.Result{Plan: plan, Status: "notStarted"})

@@ -11,6 +11,7 @@ import (
 	"github.com/wkt84/esapi-cli/internal/detect"
 	"github.com/wkt84/esapi-cli/internal/diagnostic"
 	"github.com/wkt84/esapi-cli/internal/project"
+	"github.com/wkt84/esapi-cli/internal/scaffold"
 )
 
 const DefaultTimeout = 5 * time.Minute
@@ -80,6 +81,9 @@ func NewPlan(selection project.Selection, options Options, system detect.System)
 		path, err := filepath.Abs(options.ESAPIPath)
 		if err != nil {
 			return plan, diagnostic.New("INVALID_ESAPI_PATH", "cannot resolve ESAPI path", err)
+		}
+		if err := scaffold.ValidateESAPIPath(path); err != nil {
+			return plan, err
 		}
 		plan.ESAPIPath = path
 		plan.Arguments = append(plan.Arguments, "-property:ESAPI_HOME="+escapeProperty(path))
